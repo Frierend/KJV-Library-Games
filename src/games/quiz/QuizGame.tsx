@@ -121,6 +121,12 @@ export default function QuizGame({ onExit }: QuizGameProps) {
     restart();
   }
 
+  function revealAnswer() {
+    clearWrongTimeout();
+    setWrongIndex(null);
+    setFeedback("revealed");
+  }
+
   function moveTo(nextIndex: number) {
     clearWrongTimeout();
     setIndex(nextIndex);
@@ -170,7 +176,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
         selectAnswer(choice);
       } else if (event.key.toLowerCase() === "r") {
         event.preventDefault();
-        setFeedback("revealed");
+        revealAnswer();
       } else if (
         roundResolved &&
         (event.key === "Enter" || event.key === "ArrowRight")
@@ -198,7 +204,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
     return (
       <main className="app-shell setup-screen">
         <button className="back-link" onClick={onExit}>
-          ← All games
+          ← All Games
         </button>
         <section className="setup-card">
           <span className="eyebrow">Game 01</span>
@@ -212,6 +218,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
                 {durations.map((seconds) => (
                   <button
                     key={seconds}
+                    aria-pressed={duration === seconds}
                     className={`option-button ${duration === seconds ? "is-selected" : ""}`}
                     onClick={() => setDuration(seconds)}
                     type="button"
@@ -228,6 +235,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
                 {countOptions.map((count) => (
                   <button
                     key={count}
+                    aria-pressed={!customMode && questionCount === count}
                     className={`option-button ${!customMode && questionCount === count ? "is-selected" : ""}`}
                     onClick={() => {
                       setQuestionCount(count);
@@ -240,6 +248,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
                   </button>
                 ))}
                 <button
+                  aria-pressed={customMode}
                   className={`option-button ${customMode ? "is-selected" : ""}`}
                   onClick={() => {
                     setCustomMode(true);
@@ -292,7 +301,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
         <section className="completion-card">
           <span className="completion-icon">✓</span>
           <span className="eyebrow">KJV Bible Quiz</span>
-          <h1>Trivia Complete</h1>
+          <h1>Quiz Complete</h1>
           <p>
             {questions.length} {questions.length === 1 ? "question" : "questions"}{" "}
             completed.
@@ -349,6 +358,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
                   roundResolved && !isCorrect ? "is-muted" : "",
                 ].join(" ")}
                 disabled={roundResolved || expired || wrongIndex !== null}
+                aria-pressed={isCorrect || isWrong}
                 onClick={() => selectAnswer(choiceIndex)}
               >
                 <span>{letters[choiceIndex]}</span>
@@ -407,7 +417,8 @@ export default function QuizGame({ onExit }: QuizGameProps) {
           </button>
           <button
             className="button button--reveal"
-            onClick={() => setFeedback("revealed")}
+            disabled={feedback === "revealed"}
+            onClick={revealAnswer}
           >
             Reveal Answer
           </button>

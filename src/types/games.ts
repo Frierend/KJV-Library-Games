@@ -21,11 +21,22 @@ export interface FourPicsPuzzle {
   reference: string;
   explanation: string;
   clues: readonly [PictureClue, PictureClue, PictureClue, PictureClue];
-  extraLetters?: readonly string[];
+  extraLetters: readonly string[];
 }
 
 export interface PictureClue {
-  emoji: string;
+  emoji?: string;
+  scene?:
+    | "storm"
+    | "pasture"
+    | "wilderness"
+    | "walls"
+    | "cave"
+    | "calvary"
+    | "night-path"
+    | "tower"
+    | "mountain-fire"
+    | "field";
   label: string;
   tone: "gold" | "blue" | "green" | "purple";
 }

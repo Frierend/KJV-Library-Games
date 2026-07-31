@@ -24,7 +24,7 @@ function Library({ onOpen }: { onOpen: (screen: AppScreen) => void }) {
           title="KJV Bible Quiz"
           badge="Game 01"
           accent="blue"
-          description="Host-led multiple-choice trivia with 100 KJV questions, mixed rounds, and an automatic countdown."
+          description="Host-led Bible trivia with mixed questions and an automatic countdown."
           onPlay={() => onOpen("quiz")}
           preview={
             <div className="quiz-preview">
@@ -37,8 +37,8 @@ function Library({ onOpen }: { onOpen: (screen: AppScreen) => void }) {
         <GameCard
           title="4 Pics 1 Word"
           badge="Game 02"
-          accent="purple"
-          description="Connect four visual Bible clues, build the answer from shuffled letters, and reveal its KJV reference."
+          accent="teal"
+          description="Connect four visual clues, build the Bible word, and reveal its reference."
           onPlay={() => onOpen("four-pics")}
           preview={
             <div className="pics-preview">

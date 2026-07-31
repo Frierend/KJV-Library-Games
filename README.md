@@ -7,8 +7,8 @@ Vite. It is ready to deploy as a static web app on Vercel.
 
 - **KJV Bible Quiz** — 100-question bank, mixed rounds, 10/20/30/50/100/custom
   question totals, and 10/15/20/30-second automatic countdowns.
-- **4 Pics 1 Word** — an initial 10-puzzle Bible pack with four illustrated
-  clues, shuffled letter tiles, answer reveal, and KJV references.
+- **4 Pics 1 Word** — 30 Bible puzzles with four visual clues, stable prefilled
+  letter hints, shuffled letter tiles, answer reveal, and KJV references.
 
 There is no score tracking. The quiz is designed for a host to recognize the
 first raised hand and check that participant's answer.

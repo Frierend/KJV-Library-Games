@@ -4,7 +4,7 @@ interface GameCardProps {
   title: string;
   description: string;
   badge: string;
-  accent: "blue" | "purple";
+  accent: "blue" | "teal";
   preview: ReactNode;
   onPlay: () => void;
 }
