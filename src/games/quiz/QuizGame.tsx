@@ -1,3 +1,4 @@
+import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameHeader } from "../../components/GameHeader";
 import { quizQuestions } from "../../data/quizQuestions";
@@ -34,8 +35,13 @@ export default function QuizGame({ onExit }: QuizGameProps) {
   const [sound, setSound] = useState(true);
   const wrongTimeoutRef = useRef<number | null>(null);
   const lastSoundSecond = useRef<number | null>(null);
+  const navigationLockRef = useRef(false);
+  const gameplayHeadingRef = useRef<HTMLHeadingElement>(null);
+  const previousPhaseRef = useRef<QuizPhase>(phase);
 
   const roundResolved = feedback === "correct" || feedback === "revealed";
+  const canAdvanceRef = useRef(roundResolved);
+  canAdvanceRef.current = roundResolved;
   const { timeLeft, expired, restart } = useCountdown({
     seconds: duration,
     roundKey: `${index}-${roundSeed}`,
@@ -43,6 +49,13 @@ export default function QuizGame({ onExit }: QuizGameProps) {
   });
 
   const current = questions[index];
+
+  useEffect(() => {
+    if (previousPhaseRef.current === "setup" && phase === "play") {
+      gameplayHeadingRef.current?.focus();
+    }
+    previousPhaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     if (!sound || phase !== "play") return;
@@ -103,6 +116,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
     setRoundSeed((value) => value + 1);
     setPhase("play");
     lastSoundSecond.current = null;
+    navigationLockRef.current = false;
   }
 
   function clearWrongTimeout() {
@@ -152,6 +166,8 @@ export default function QuizGame({ onExit }: QuizGameProps) {
   }
 
   function next() {
+    if (!canAdvanceRef.current || navigationLockRef.current) return;
+    navigationLockRef.current = true;
     if (index >= questions.length - 1) {
       setPhase("complete");
       return;
@@ -168,6 +184,10 @@ export default function QuizGame({ onExit }: QuizGameProps) {
   }
 
   useEffect(() => {
+    navigationLockRef.current = false;
+  }, [index, phase]);
+
+  useEffect(() => {
     if (phase !== "play") return;
     const handleKey = (event: KeyboardEvent) => {
       const choice = ["a", "b", "c", "d"].indexOf(event.key.toLowerCase());
@@ -178,8 +198,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
         event.preventDefault();
         revealAnswer();
       } else if (
-        roundResolved &&
-        (event.key === "Enter" || event.key === "ArrowRight")
+        event.key === "Enter" || event.key === "ArrowRight"
       ) {
         event.preventDefault();
         next();
@@ -195,7 +214,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
   const setupSummary = useMemo(
     () =>
       preparedQuestions
-        ? `${preparedQuestions.length} questions mixed ✓`
+        ? `${preparedQuestions.length} questions mixed and ready`
         : "Randomize questions",
     [preparedQuestions],
   );
@@ -204,7 +223,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
     return (
       <main className="app-shell setup-screen">
         <button className="back-link" onClick={onExit}>
-          ← All Games
+          <ArrowLeft aria-hidden="true" size={18} /> All Games
         </button>
         <section className="setup-card">
           <span className="eyebrow">Game 01</span>
@@ -264,6 +283,8 @@ export default function QuizGame({ onExit }: QuizGameProps) {
                 <label className="custom-field">
                   <span>Custom total</span>
                   <input
+                    aria-describedby="quiz-custom-total-help"
+                    aria-invalid={Boolean(customError)}
                     autoFocus
                     type="number"
                     inputMode="numeric"
@@ -276,7 +297,9 @@ export default function QuizGame({ onExit }: QuizGameProps) {
                       setPreparedQuestions(null);
                     }}
                   />
-                  <small>{customError || "Choose from 1 to 100."}</small>
+                  <small id="quiz-custom-total-help">
+                    {customError || "Choose from 1 to 100."}
+                  </small>
                 </label>
               )}
             </fieldset>
@@ -299,7 +322,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
     return (
       <main className="app-shell completion-screen">
         <section className="completion-card">
-          <span className="completion-icon">✓</span>
+          <span className="completion-icon"><CheckCircle2 aria-hidden="true" /></span>
           <span className="eyebrow">KJV Bible Quiz</span>
           <h1>Quiz Complete</h1>
           <p>
@@ -341,7 +364,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
           <span className="question-number">
             {String(index + 1).padStart(2, "0")}
           </span>
-          <h1>{current.question}</h1>
+          <h1 ref={gameplayHeadingRef} tabIndex={-1}>{current.question}</h1>
         </div>
 
         <div className="choice-grid">
@@ -398,7 +421,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
         </div>
       </section>
 
-      <nav className="game-controls">
+      <nav aria-label="Host controls" className="game-controls host-control-dock">
         <div>
           <button className="button button--ghost" onClick={backToSetup}>
             Setup
@@ -408,7 +431,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
             disabled={index === 0}
             onClick={() => moveTo(index - 1)}
           >
-            ← Previous
+            <ArrowLeft aria-hidden="true" size={17} /> Previous
           </button>
         </div>
         <div>
@@ -423,8 +446,12 @@ export default function QuizGame({ onExit }: QuizGameProps) {
             Reveal Answer
           </button>
         </div>
-        <button className="button button--primary" onClick={next}>
-          {index === questions.length - 1 ? "Finish" : "Next →"}
+        <button
+          className="button button--primary"
+          disabled={!roundResolved}
+          onClick={next}
+        >
+          {index === questions.length - 1 ? "Finish" : <>Next <ArrowRight aria-hidden="true" size={17} /></>}
         </button>
       </nav>
     </main>

@@ -1,0 +1,257 @@
+import { createId, initialRoundState, timerForRound } from "./createSession";
+import { canAdvance, currentPreparedRound, currentRoundState } from "./selectors";
+import type { ActiveSession, PersistedRoundState } from "./types";
+
+export type SessionAction =
+  | { type: "QUIZ_SELECT"; choiceIndex: number; correct: boolean }
+  | { type: "FOUR_ADD_LETTER"; tileId: string; capacity: number }
+  | { type: "FOUR_DELETE_LETTER" }
+  | { type: "FOUR_SUBMIT"; correct: boolean }
+  | { type: "CLEAR_INCORRECT" }
+  | { type: "REVEAL" }
+  | { type: "RESET_ROUND" }
+  | { type: "NEXT" }
+  | { type: "PREVIOUS" }
+  | { type: "TICK"; remainingMs: number }
+  | { type: "TOGGLE_TIMER" }
+  | { type: "PAUSE_TIMER_FOR_DIALOG" }
+  | { type: "RESUME_TIMER" }
+  | { type: "PAUSE_TIMER" }
+  | { type: "TOGGLE_SOUND" }
+  | { type: "SCORE"; teamId: string; delta: 1 | -1 }
+  | { type: "UNDO_SCORE" };
+
+function updateCurrentRound(
+  session: ActiveSession,
+  update: (state: PersistedRoundState) => PersistedRoundState,
+) {
+  const round = currentPreparedRound(session);
+  const state = currentRoundState(session);
+  if (!round || !state) return session;
+  return {
+    ...session,
+    updatedAt: new Date().toISOString(),
+    roundStates: { ...session.roundStates, [round.id]: update(state) },
+  };
+}
+
+function timerAfterResolution(session: ActiveSession) {
+  return session.timer.enabled
+    ? { ...session.timer, status: "paused" as const }
+    : session.timer;
+}
+
+export function sessionReducer(
+  session: ActiveSession,
+  action: SessionAction,
+): ActiveSession {
+  const round = currentPreparedRound(session);
+  const state = currentRoundState(session);
+  if (!round || !state) return session;
+
+  switch (action.type) {
+    case "QUIZ_SELECT": {
+      if (
+        round.gameId !== "quiz" ||
+        state.gameId !== "quiz" ||
+        state.result !== "unchecked" ||
+        session.timer.status === "expired"
+      ) return session;
+      const next = updateCurrentRound(session, () => ({
+        ...state,
+        result: action.correct ? "correct" : "incorrect",
+        selectedIndex: action.choiceIndex,
+        wrongIndex: action.correct ? null : action.choiceIndex,
+      }));
+      return action.correct ? { ...next, timer: timerAfterResolution(next) } : next;
+    }
+    case "FOUR_ADD_LETTER":
+      if (
+        round.gameId !== "four-pics" ||
+        state.gameId !== "four-pics" ||
+        state.result !== "unchecked" ||
+        session.timer.status === "expired" ||
+        state.selectedIds.includes(action.tileId) ||
+        state.selectedIds.length >= action.capacity
+      ) return session;
+      return updateCurrentRound(session, () => ({
+        ...state,
+        selectedIds: [...state.selectedIds, action.tileId],
+      }));
+    case "FOUR_DELETE_LETTER":
+      if (
+        round.gameId !== "four-pics" ||
+        state.gameId !== "four-pics" ||
+        state.result !== "unchecked"
+      ) return session;
+      return updateCurrentRound(session, () => ({
+        ...state,
+        selectedIds: state.selectedIds.slice(0, -1),
+      }));
+    case "FOUR_SUBMIT": {
+      if (
+        round.gameId !== "four-pics" ||
+        state.gameId !== "four-pics" ||
+        state.result !== "unchecked" ||
+        session.timer.status === "expired"
+      ) return session;
+      const next = updateCurrentRound(session, () => ({
+        ...state,
+        result: action.correct ? "correct" : "incorrect",
+      }));
+      return action.correct ? { ...next, timer: timerAfterResolution(next) } : next;
+    }
+    case "CLEAR_INCORRECT":
+      if (state.result !== "incorrect") return session;
+      return updateCurrentRound(session, () =>
+        state.gameId === "quiz"
+          ? { ...state, result: "unchecked", selectedIndex: null, wrongIndex: null }
+          : { ...state, result: "unchecked", selectedIds: [] },
+      );
+    case "REVEAL": {
+      if (state.result === "revealed") return session;
+      const next = updateCurrentRound(session, () => ({
+        ...state,
+        result: "revealed",
+      }));
+      return { ...next, timer: timerAfterResolution(next) };
+    }
+    case "RESET_ROUND":
+      return {
+        ...session,
+        status: "active",
+        updatedAt: new Date().toISOString(),
+        roundStates: {
+          ...session.roundStates,
+          [round.id]: initialRoundState(round),
+        },
+        timer: timerForRound(round),
+      };
+    case "NEXT": {
+      if (!canAdvance(state, round.expiryBehavior)) return session;
+      if (session.roundIndex >= session.preparedRounds.length - 1) {
+        return {
+          ...session,
+          status: "complete",
+          updatedAt: new Date().toISOString(),
+          timer: { ...session.timer, status: "idle" },
+        };
+      }
+      const roundIndex = session.roundIndex + 1;
+      const nextRound = session.preparedRounds[roundIndex];
+      const nextState = session.roundStates[nextRound.id];
+      const timer = timerForRound(nextRound, nextState.result === "unchecked");
+      if (nextState.result !== "unchecked") timer.status = "paused";
+      return {
+        ...session,
+        status: "active",
+        roundIndex,
+        updatedAt: new Date().toISOString(),
+        timer,
+      };
+    }
+    case "PREVIOUS": {
+      if (session.roundIndex === 0) return session;
+      const roundIndex = session.roundIndex - 1;
+      const previousRound = session.preparedRounds[roundIndex];
+      return {
+        ...session,
+        status: "paused",
+        roundIndex,
+        updatedAt: new Date().toISOString(),
+        timer: timerForRound(previousRound, false),
+      };
+    }
+    case "TICK": {
+      if (session.timer.status !== "running" || !session.timer.enabled) return session;
+      if (action.remainingMs > 0) {
+        return {
+          ...session,
+          updatedAt: new Date().toISOString(),
+          timer: { ...session.timer, remainingMs: action.remainingMs },
+        };
+      }
+      const result = round.expiryBehavior === "auto-reveal" ? "revealed" : "expired";
+      const next = updateCurrentRound(session, () => ({ ...state, result }));
+      return {
+        ...next,
+        timer: { ...session.timer, remainingMs: 0, status: "expired" },
+      };
+    }
+    case "TOGGLE_TIMER":
+      if (!session.timer.enabled || session.timer.status === "expired") return session;
+      if (state.result === "correct" || state.result === "revealed") return session;
+      return {
+        ...session,
+        status: session.timer.status === "running" ? "paused" : "active",
+        updatedAt: new Date().toISOString(),
+        timer: {
+          ...session.timer,
+          status: session.timer.status === "running" ? "paused" : "running",
+        },
+      };
+    case "PAUSE_TIMER_FOR_DIALOG":
+      if (!session.timer.enabled || session.timer.status !== "running") return session;
+      return {
+        ...session,
+        updatedAt: new Date().toISOString(),
+        timer: { ...session.timer, status: "paused" },
+      };
+    case "RESUME_TIMER":
+      if (
+        !session.timer.enabled ||
+        session.timer.status !== "paused" ||
+        session.timer.remainingMs <= 0 ||
+        session.status !== "active" ||
+        state.result === "correct" ||
+        state.result === "revealed" ||
+        state.result === "expired"
+      ) return session;
+      return {
+        ...session,
+        updatedAt: new Date().toISOString(),
+        timer: { ...session.timer, status: "running" },
+      };
+    case "PAUSE_TIMER":
+      if (session.status === "paused" && session.timer.status !== "running") return session;
+      return {
+        ...session,
+        status: "paused",
+        updatedAt: new Date().toISOString(),
+        timer:
+          session.timer.status === "running"
+            ? { ...session.timer, status: "paused" }
+            : session.timer,
+      };
+    case "TOGGLE_SOUND":
+      return {
+        ...session,
+        updatedAt: new Date().toISOString(),
+        config: { ...session.config, soundEnabled: !session.config.soundEnabled },
+      };
+    case "SCORE":
+      if (!session.config.teams.some((team) => team.id === action.teamId)) return session;
+      return {
+        ...session,
+        updatedAt: new Date().toISOString(),
+        scoreEvents: [
+          ...session.scoreEvents,
+          {
+            id: createId("score"),
+            teamId: action.teamId,
+            delta: action.delta,
+            roundId: round.id,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      };
+    case "UNDO_SCORE":
+      return {
+        ...session,
+        updatedAt: new Date().toISOString(),
+        scoreEvents: session.scoreEvents.slice(0, -1),
+      };
+    default:
+      return session;
+  }
+}

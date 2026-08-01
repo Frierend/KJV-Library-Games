@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="KJVenture open Bible compass mark">
+  <rect width="512" height="512" rx="112" fill="#fff8e8"/>
+  <circle cx="256" cy="256" r="184" fill="#fff1c7" stroke="#d99a21" stroke-width="24"/>
+  <path d="M256 104l28 124 124 28-124 28-28 124-28-124-124-28 124-28z" fill="#d99a21" opacity=".26"/>
+  <path d="M132 202c48-22 89-13 124 19v143c-36-29-77-37-124-18V202zm248 0c-48-22-89-13-124 19v143c36-29 77-37 124-18V202z" fill="#2f8f80" stroke="#17324d" stroke-width="16" stroke-linejoin="round"/>
+  <path d="M256 221v143" stroke="#17324d" stroke-width="14" stroke-linecap="round"/>
+  <path d="M162 246c27-7 48-2 66 10M162 282c27-7 48-2 66 10M350 246c-27-7-48-2-66 10M350 282c-27-7-48-2-66 10" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" opacity=".86"/>
+</svg>

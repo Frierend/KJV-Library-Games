@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface GameCardProps {
@@ -27,7 +28,7 @@ export function GameCard({
         <h2>{title}</h2>
         <p>{description}</p>
         <button className="button button--primary" onClick={onPlay}>
-          Open Game <span aria-hidden="true">→</span>
+          Open Game <ArrowRight aria-hidden="true" size={18} />
         </button>
       </div>
     </article>
