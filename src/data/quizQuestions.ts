@@ -575,7 +575,7 @@ export const quizQuestions = [
     ],
     "correctIndex": 0,
     "answer": "David",
-    "reference": "Psalm titles"
+    "reference": "Psalm 3:1; 4:1; 5:1"
   },
   {
     "question": "According to Proverbs, what is the beginning of knowledge?",
@@ -614,7 +614,7 @@ export const quizQuestions = [
     "reference": "Isaiah 6:1"
   },
   {
-    "question": "Which prophet was known as the weeping prophet?",
+    "question": "Which prophet wished that his eyes were a fountain of tears?",
     "choices": [
       "Daniel",
       "Jeremiah",
@@ -746,7 +746,7 @@ export const quizQuestions = [
     "reference": "Matthew 14:28–29"
   },
   {
-    "question": "How many people were fed with five loaves and two fishes?",
+    "question": "About how many men were fed with five loaves and two fishes?",
     "choices": [
       "About 500",
       "About 2,000",
@@ -818,7 +818,7 @@ export const quizQuestions = [
     "reference": "Matthew 26:14–16"
   },
   {
-    "question": "For how many pieces of silver was Jesus betrayed?",
+    "question": "For how many pieces of silver did Judas agree to deliver Jesus?",
     "choices": [
       "10",
       "20",
@@ -827,7 +827,7 @@ export const quizQuestions = [
     ],
     "correctIndex": 2,
     "answer": "30",
-    "reference": "Matthew 26:15"
+    "reference": "Matthew 26:14–15"
   },
   {
     "question": "Which disciple denied Jesus three times?",
@@ -902,7 +902,7 @@ export const quizQuestions = [
     "reference": "Colossians 4:14; Luke 1:1–4"
   },
   {
-    "question": "What did the angels announce to the shepherds?",
+    "question": "What did the angel announce to the shepherds?",
     "choices": [
       "A prophet is born",
       "A Saviour is born",
@@ -950,7 +950,7 @@ export const quizQuestions = [
     "reference": "Luke 10:39–42"
   },
   {
-    "question": "What did the father give the returning prodigal son?",
+    "question": "Which of these did the father give the returning prodigal son?",
     "choices": [
       "A crown",
       "The best robe",
@@ -1070,7 +1070,7 @@ export const quizQuestions = [
     "reference": "Acts 7:59–60"
   },
   {
-    "question": "On what road did Saul encounter Jesus?",
+    "question": "Near which city did Saul encounter Jesus?",
     "choices": [
       "Jericho",
       "Damascus",

@@ -736,6 +736,8 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  min-width: 0;
+  overflow: auto;
   min-height: 56px;
   padding: 11px 18px;
   border: 1px solid var(--border);
@@ -744,10 +746,18 @@ button:disabled {
   color: var(--text);
 }
 
+.feedback strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .feedback span {
-  flex: 0 0 auto;
+  flex: 1 1 16rem;
+  min-width: 0;
   color: inherit;
   font-weight: 800;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .feedback--empty {
@@ -1611,6 +1621,11 @@ button:disabled {
     gap: 5px;
     min-height: 50px;
     padding: 10px 13px;
+  }
+
+  .feedback span {
+    width: 100%;
+    text-align: left;
   }
 
   .game-controls {

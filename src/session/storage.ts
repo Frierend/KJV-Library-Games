@@ -34,6 +34,9 @@ function isActiveSession(value: unknown): value is ActiveSession {
     Array.isArray(candidate.preparedRounds) &&
     candidate.preparedRounds.length > 0 &&
     typeof candidate.roundIndex === "number" &&
+    Number.isInteger(candidate.roundIndex) &&
+    candidate.roundIndex >= 0 &&
+    candidate.roundIndex < candidate.preparedRounds.length &&
     Boolean(candidate.config) &&
     Boolean(candidate.roundStates) &&
     Boolean(candidate.timer)

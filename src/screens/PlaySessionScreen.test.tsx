@@ -208,6 +208,49 @@ describe("hosted session integrity", () => {
     expect(timer).toHaveAccessibleName("0 seconds remaining");
   });
 
+  it("explains that an allow-skip expired round can advance without a reveal", () => {
+    renderHostedSession(
+      {
+        ...defaultSessionConfig,
+        playlist: [
+          createPlaylistItem("quiz", 0, {
+            roundCount: 1,
+            order: "source",
+            timerSeconds: 5,
+            expiryBehavior: "allow-skip",
+          }),
+        ],
+      },
+      [{ type: "TICK", remainingMs: 0 }],
+    );
+
+    expect(
+      screen.getByText("Time’s up! You may continue or reveal the answer."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Finish" })).toBeEnabled();
+  });
+
+  it("presents an auto-revealed zero timer as expired", () => {
+    renderHostedSession(
+      {
+        ...defaultSessionConfig,
+        playlist: [
+          createPlaylistItem("quiz", 0, {
+            roundCount: 1,
+            order: "source",
+            timerSeconds: 5,
+            expiryBehavior: "auto-reveal",
+          }),
+        ],
+      },
+      [{ type: "TICK", remainingMs: 0 }],
+    );
+
+    expect(screen.getByText(/^Answer:/)).toBeVisible();
+    expect(screen.getByRole("timer")).toHaveTextContent("0:00");
+    expect(screen.getByRole("timer")).toHaveClass("timer--expired");
+  });
+
   it("restores the persisted millisecond timer with correct clock formatting", () => {
     const firstView = renderHostedSession(
       {

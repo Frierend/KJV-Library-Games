@@ -275,7 +275,7 @@ export const fourPicsPuzzles = [
     explanation: "Jesus gave thanks for five barley loaves and fed the multitude.",
     extraLetters: ["F", "I", "S", "H"],
     clues: [
-      { emoji: "🥖 🥖 🥖", label: "Five barley breads", tone: "gold" },
+      { emoji: "🥖 🥖 🥖", label: "Five barley loaves", tone: "gold" },
       { emoji: "🐟 🐟", label: "Two small fishes", tone: "blue" },
       { emoji: "👥 👥 👥", label: "A large seated multitude", tone: "purple" },
       { emoji: "🧺 🧺", label: "Baskets of fragments", tone: "green" },
@@ -311,7 +311,7 @@ export const fourPicsPuzzles = [
     explanation: "At Jesus’ baptism, the Spirit of God descended like a dove.",
     extraLetters: ["S", "P", "I", "R"],
     clues: [
-      { emoji: "🕊️", label: "A white bird descending", tone: "blue" },
+      { emoji: "🕊️", label: "A dove descending", tone: "blue" },
       { emoji: "💧", label: "Water of baptism", tone: "green" },
       { emoji: "☁️ ✨", label: "The heavens opened", tone: "purple" },
       { emoji: "👑 🙏", label: "Jesus after being baptized", tone: "gold" },

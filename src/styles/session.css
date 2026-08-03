@@ -124,7 +124,10 @@
 .icon-flip { transform: rotate(180deg); }
 
 .session-player { grid-template-rows: auto minmax(0, 1fr) auto; }
-.session-game-board { width: min(100%, 1760px); }
+.session-game-board {
+  width: min(100%, 1760px);
+  overflow: auto;
+}
 .game-top-bar,
 .host-control-dock { width: min(100%, 1760px); }
 .host-control-dock { display: grid; gap: 8px; padding: 8px; border: 1px solid rgba(169, 189, 206, 0.78); border-radius: 18px; background: rgba(255, 255, 255, 0.86); box-shadow: var(--shadow-sm); backdrop-filter: blur(10px); }
@@ -291,7 +294,7 @@
 
   .session-player .session-game-board {
     margin: 0 auto;
-    overflow: visible;
+    overflow: auto;
   }
 
   .session-player .quiz-board {
@@ -356,7 +359,7 @@
   }
 
   .session-player .four-pics-board--with-audience-scores {
-    grid-template-rows: auto 172px;
+    grid-template-rows: auto minmax(172px, auto);
   }
 
   .session-player .picture-grid {

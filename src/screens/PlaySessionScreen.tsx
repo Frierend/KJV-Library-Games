@@ -130,7 +130,13 @@ function QuizRound({
         ].join(" ")}
       >
         {state.result === "incorrect" && <strong>Wrong answer. Try again.</strong>}
-        {state.result === "expired" && <strong>Time’s up! Reveal the answer to continue.</strong>}
+        {state.result === "expired" && (
+          <strong>
+            {round.expiryBehavior === "allow-skip"
+              ? "Time’s up! You may continue or reveal the answer."
+              : "Time’s up! Reveal the answer to continue."}
+          </strong>
+        )}
         {state.result === "correct" && <strong>Correct! {record.answer}</strong>}
         {state.result === "revealed" && <strong>Answer: {record.answer}</strong>}
         {showReference && <span>{record.referenceText}</span>}
@@ -282,7 +288,13 @@ function FourPicsRound({
           ].join(" ")}
         >
           {state.result === "incorrect" && <strong>Try again.</strong>}
-          {state.result === "expired" && <strong>Time’s up! Reveal the answer to continue.</strong>}
+          {state.result === "expired" && (
+            <strong>
+              {round.expiryBehavior === "allow-skip"
+                ? "Time’s up! You may continue or reveal the answer."
+                : "Time’s up! Reveal the answer to continue."}
+            </strong>
+          )}
           {state.result === "correct" && <strong>Correct! {record.answer}</strong>}
           {state.result === "revealed" && <strong>Answer: {record.answer}</strong>}
           {showReference && (
@@ -468,7 +480,7 @@ export function PlaySessionScreen() {
   return (
     <main className={`play-shell play-shell--${round.gameId} session-player`}>
       <GameTopBar
-        expired={roundState.result === "expired"}
+        expired={activeSession.timer.status === "expired"}
         gameName={gameName}
         onExit={handleOpenExit}
         onToggleSound={() => dispatch({ type: "TOGGLE_SOUND" })}

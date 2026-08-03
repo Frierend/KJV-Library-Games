@@ -52,6 +52,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
   const resultRef = useRef<RoundResult>("unchecked");
   const canAdvanceRef = useRef(false);
   const navigationLockRef = useRef(false);
+  const countdownRestartPendingRef = useRef(false);
   const gameplayHeadingRef = useRef<HTMLHeadingElement>(null);
   const previousPhaseRef = useRef<GamePhase>(phase);
 
@@ -107,6 +108,11 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
   }, [phase, sound, timeLeft]);
 
   useEffect(() => {
+    if (!expired) {
+      countdownRestartPendingRef.current = false;
+      return;
+    }
+    if (countdownRestartPendingRef.current) return;
     if (phase === "play" && expired && resultRef.current === "unchecked") {
       resultRef.current = "expired";
       setResultState("expired");
@@ -167,6 +173,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
     const count = resolveCount();
     if (count === null) return;
     clearWrongTimeout();
+    countdownRestartPendingRef.current = true;
     setRounds(prepared ?? makePuzzleSet(count));
     setPrepared(null);
     setIndex(0);
@@ -179,6 +186,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
 
   function resetRound() {
     clearWrongTimeout();
+    countdownRestartPendingRef.current = true;
     setSelectedIds([]);
     setResult("unchecked");
     setTimerSeed((value) => value + 1);
@@ -187,6 +195,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
 
   function moveTo(nextIndex: number) {
     clearWrongTimeout();
+    countdownRestartPendingRef.current = true;
     setIndex(nextIndex);
     setSelectedIds([]);
     setResult("unchecked");

@@ -48,6 +48,16 @@ describe("session persistence", () => {
     expect(localStorage.getItem(ACTIVE_SESSION_KEY)).toBe(raw);
   });
 
+  it("rejects a saved session whose round index is outside its prepared rounds", () => {
+    const session = createActiveSession(defaultSessionConfig);
+    session.roundIndex = session.preparedRounds.length;
+    saveActiveSession(session);
+
+    const restored = readStoredSession();
+    expect(restored.session).toBeNull();
+    expect(restored.error).toMatch(/unsupported or incomplete format/i);
+  });
+
   it("round-trips host preferences and safely fills missing fields", () => {
     savePreferences({
       soundEnabled: false,

@@ -228,6 +228,27 @@ describe("4 Pics 1 Word", () => {
     expect(screen.getByRole("button", { name: /next/i })).toBeEnabled();
   });
 
+  it("starts a fresh countdown when an expired round is reset", () => {
+    vi.useFakeTimers();
+    render(<FourPicsGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /start game/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(20_500);
+    });
+    expect(screen.getByText(/time’s up! reveal the answer/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /reset round/i }));
+    expect(screen.queryByText(/time’s up!/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("timer")).toHaveTextContent("0:20");
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(screen.getByRole("timer")).toHaveTextContent("0:19");
+    expect(screen.getAllByRole("button", { name: /^Letter [A-Z]$/ })[0]).toBeEnabled();
+  });
+
   it("defensively rejects rapid forward navigation", () => {
     render(<FourPicsGame onExit={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /start game/i }));
