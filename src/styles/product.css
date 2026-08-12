@@ -67,11 +67,11 @@
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   align-items: center;
-  gap: clamp(30px, 6vw, 100px);
+  gap: clamp(24px, 5vw, 72px);
   width: min(100% - 40px, 1540px);
-  min-height: clamp(420px, 56vh, 650px);
+  min-height: clamp(360px, 48vh, 560px);
   margin: 0 auto;
-  padding: clamp(44px, 7vw, 96px) 0;
+  padding: clamp(36px, 5.5vw, 76px) 0;
 }
 
 .home-hero h1,
@@ -104,7 +104,7 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 320px;
+  min-height: clamp(270px, 30vh, 320px);
   border: 1px solid #c8dcd7;
   border-radius: 48% 52% 38% 62% / 55% 38% 62% 45%;
   background:
@@ -180,7 +180,7 @@
   gap: 28px;
   width: min(100% - 40px, 1540px);
   margin: 0 auto;
-  padding: clamp(42px, 7vw, 80px) 0 32px;
+  padding: clamp(32px, 5vw, 64px) 0 24px;
 }
 
 .screen-heading {
