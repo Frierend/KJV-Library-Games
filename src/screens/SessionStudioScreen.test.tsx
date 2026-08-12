@@ -32,6 +32,28 @@ describe("Session Studio scoring modes", () => {
     expect(screen.getByText("Reduced Motion")).toBeVisible();
   });
 
+  it("groups presentation settings without changing their stored values", () => {
+    renderStudio();
+
+    expect(screen.getByRole("group", { name: "Content Display" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Audio & Motion" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Screen & Display" })).toBeVisible();
+    expect(screen.getByText("Control how the session appears and behaves when shown on a laptop, TV, or projector. These settings do not change the game content.")).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText("Bible Reference Display"), { target: { value: "always" } });
+    fireEvent.change(screen.getByLabelText("Animation Level"), { target: { value: "reduced" } });
+    const soundEffects = screen.getByRole("checkbox", { name: "Enable Sound Effects" });
+    fireEvent.click(soundEffects);
+    expect(screen.getByRole("checkbox", { name: "Start Session in Fullscreen" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Start Session$/ }));
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    expect(stored.config.referenceDisplay).toBe("always");
+    expect(stored.config.motion).toBe("reduced");
+    expect(stored.config.soundEnabled).toBe(false);
+    expect(stored.config.fullscreenAtStart).toBe(false);
+  });
+
   it("adds, edits, trims, and removes players with stable generated IDs", () => {
     renderStudio();
     fireEvent.click(screen.getByRole("button", { name: /Individual Play/ }));

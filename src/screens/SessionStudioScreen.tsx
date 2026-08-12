@@ -365,31 +365,47 @@ export function SessionStudioScreen() {
             </section>
           )}
 
-          <section className="studio-section">
+          <section className="studio-section presentation-settings">
             <div className="studio-section__heading"><div><span className="eyebrow">Step 3</span><h2>Presentation Settings</h2></div></div>
-            <div className="preference-grid">
-              <div className="studio-field"><span><label htmlFor="reference-display">Bible Reference Display</label><InfoTip label="Bible Reference Display">Choose when the Bible reference appears during play; this setting does not change the answer or scoring.</InfoTip></span><select id="reference-display" onChange={(event) => setConfig((current) => ({ ...current, referenceDisplay: event.target.value as SessionConfig["referenceDisplay"] }))} value={config.referenceDisplay}><option value="on-resolution">After Answer Reveal</option><option value="always">Always Show</option><option value="hidden">Hidden</option></select></div>
-              <div className="studio-field"><span><label htmlFor="animation-level">Animation Level</label><InfoTip label="Animation Level">Reduced Motion minimizes animation, while Follow Device Setting respects the device accessibility preference.</InfoTip></span><select id="animation-level" onChange={(event) => setConfig((current) => ({ ...current, motion: event.target.value as SessionConfig["motion"] }))} value={config.motion}><option value="system">Follow Device Setting</option><option value="full">Full Motion</option><option value="reduced">Reduced Motion</option></select></div>
-              <label className="studio-check"><input checked={config.soundEnabled} onChange={(event) => setConfig((current) => ({ ...current, soundEnabled: event.target.checked }))} type="checkbox" /><span>Enable Sound Effects</span></label>
-              <div className={`studio-check ${!fullscreenSupported ? "studio-check--disabled" : ""}`}>
-                <input
-                  checked={config.fullscreenAtStart}
-                  disabled={!fullscreenSupported}
-                  id="fullscreen-at-start"
-                  onChange={(event) => setConfig((current) => ({ ...current, fullscreenAtStart: event.target.checked }))}
-                  type="checkbox"
-                />
-                <label htmlFor="fullscreen-at-start">Start Session in Fullscreen</label>
-                <InfoTip label="Start Session in Fullscreen">Requests browser fullscreen when the session starts; the browser may require a user gesture or deny the request.</InfoTip>
-              </div>
+            <p className="presentation-settings__helper">Control how the session appears and behaves when shown on a laptop, TV, or projector. These settings do not change the game content.</p>
+            <div className="presentation-settings__groups">
+              <fieldset className="presentation-group">
+                <legend>Content Display</legend>
+                <div className="presentation-group__controls">
+                  <div className="studio-field"><span><label htmlFor="reference-display">Bible Reference Display</label><InfoTip label="Bible Reference Display">Choose when the Bible reference appears during play; this setting does not change the answer or scoring.</InfoTip></span><select id="reference-display" onChange={(event) => setConfig((current) => ({ ...current, referenceDisplay: event.target.value as SessionConfig["referenceDisplay"] }))} value={config.referenceDisplay}><option value="on-resolution">After Answer Reveal</option><option value="always">Always Show</option><option value="hidden">Hidden</option></select></div>
+                </div>
+              </fieldset>
+              <fieldset className="presentation-group">
+                <legend>Audio &amp; Motion</legend>
+                <div className="presentation-group__controls">
+                  <div className="studio-field"><span><label htmlFor="animation-level">Animation Level</label><InfoTip label="Animation Level">Reduced Motion minimizes animation, while Follow Device Setting respects the device accessibility preference.</InfoTip></span><select id="animation-level" onChange={(event) => setConfig((current) => ({ ...current, motion: event.target.value as SessionConfig["motion"] }))} value={config.motion}><option value="system">Follow Device Setting</option><option value="full">Full Motion</option><option value="reduced">Reduced Motion</option></select></div>
+                  <label className="studio-check"><input checked={config.soundEnabled} onChange={(event) => setConfig((current) => ({ ...current, soundEnabled: event.target.checked }))} type="checkbox" /><span>Enable Sound Effects</span></label>
+                </div>
+              </fieldset>
+              <fieldset className="presentation-group">
+                <legend>Screen &amp; Display</legend>
+                <div className="presentation-group__controls">
+                  <div className={`studio-check ${!fullscreenSupported ? "studio-check--disabled" : ""}`}>
+                    <input
+                      checked={config.fullscreenAtStart}
+                      disabled={!fullscreenSupported}
+                      id="fullscreen-at-start"
+                      onChange={(event) => setConfig((current) => ({ ...current, fullscreenAtStart: event.target.checked }))}
+                      type="checkbox"
+                    />
+                    <label htmlFor="fullscreen-at-start">Start Session in Fullscreen</label>
+                    <InfoTip label="Start Session in Fullscreen">Requests browser fullscreen when the session starts; the browser may require a user gesture or deny the request.</InfoTip>
+                  </div>
+                  {!fullscreenSupported && (
+                    <div className="studio-fullscreen-notice">
+                      <StatusNotice tone="warning">
+                        Fullscreen is unavailable in this browser.
+                      </StatusNotice>
+                    </div>
+                  )}
+                </div>
+              </fieldset>
             </div>
-            {!fullscreenSupported && (
-              <div className="studio-fullscreen-notice">
-                <StatusNotice tone="warning">
-                  Fullscreen is unavailable in this browser.
-                </StatusNotice>
-              </div>
-            )}
           </section>
         </div>
 
