@@ -104,14 +104,14 @@ for (const showAudienceScores of [true, false]) {
     await expect(audienceScores).toHaveCount(showAudienceScores ? 1 : 0);
     await expect(host.getByRole("region", { name: "Host Team Score Controls" })).toBeVisible();
 
-    await host.getByRole("button", { name: "Add one point to Team 1" }).click();
+    await host.getByRole("button", { name: "Add 1 point to Team 1" }).click();
     await expect(host.getByLabel("Team 1: 1 points")).toBeVisible();
-    await host.getByRole("button", { name: "Remove one point from Team 1" }).click();
+    await host.getByRole("button", { name: "Subtract 1 point from Team 1" }).click();
     await expect(host.getByLabel("Team 1: 0 points")).toBeVisible();
-    await host.getByRole("button", { name: "Add one point to Team 1" }).click();
+    await host.getByRole("button", { name: "Add 1 point to Team 1" }).click();
     await host.getByRole("button", { name: "Undo last score change" }).click();
     await expect(host.getByLabel("Team 1: 0 points")).toBeVisible();
-    await host.getByRole("button", { name: "Add one point to Team 1" }).click();
+    await host.getByRole("button", { name: "Add 1 point to Team 1" }).click();
 
     if (showAudienceScores) {
       await expect(audienceScores.getByLabel("Team 1: 1 points")).toBeVisible();

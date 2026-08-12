@@ -61,13 +61,13 @@ async function startSixTeamSession(page: Page, showAudienceScores: boolean) {
   for (let index = 0; index < TEAM_NAMES.length; index += 1) {
     const score = TEAM_SCORES[index];
     const buttonName = score >= 0
-      ? `Add one point to ${TEAM_NAMES[index]}`
-      : `Remove one point from ${TEAM_NAMES[index]}`;
+      ? `Add 1 point to ${TEAM_NAMES[index]}`
+      : `Subtract 1 point from ${TEAM_NAMES[index]}`;
     for (let click = 0; click < Math.abs(score); click += 1) {
       await host.getByRole("button", { name: buttonName }).click();
     }
   }
-  await host.getByRole("button", { name: "Add one point to Grace" }).click();
+  await host.getByRole("button", { name: "Add 1 point to Grace" }).click();
   await host.getByRole("button", { name: "Undo last score change" }).click();
 }
 

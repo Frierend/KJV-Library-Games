@@ -307,11 +307,11 @@ describe("hosted session integrity", () => {
       }
       expect(within(host).getByRole("region", { name: "Host Team Score Controls" })).toBeVisible();
 
-      fireEvent.click(within(host).getByRole("button", { name: "Add one point to Blue" }));
+      fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Blue" }));
       expect(within(host).getByLabelText("Blue: 1 points")).toBeVisible();
-      fireEvent.click(within(host).getByRole("button", { name: "Remove one point from Blue" }));
+      fireEvent.click(within(host).getByRole("button", { name: "Subtract 1 point from Blue" }));
       expect(within(host).getByLabelText("Blue: 0 points")).toBeVisible();
-      fireEvent.click(within(host).getByRole("button", { name: "Add one point to Blue" }));
+      fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Blue" }));
       fireEvent.click(within(host).getByRole("button", { name: "Undo last score change" }));
       expect(within(host).getByLabelText("Blue: 0 points")).toBeVisible();
 
@@ -337,7 +337,7 @@ describe("hosted session integrity", () => {
     };
     const firstView = renderHostedSession(config);
     const host = screen.getByRole("navigation", { name: "Host Controls" });
-    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Blue" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Blue" }));
     fireEvent.click(within(host).getByRole("button", { name: "Reveal Answer" }));
     fireEvent.click(within(host).getByRole("button", { name: "Next" }));
 
@@ -377,8 +377,8 @@ describe("hosted session integrity", () => {
     expect(within(host).getByRole("region", { name: "Host Player Score Controls" })).toBeVisible();
     expect(within(host).queryByText(/^Team/)).toBeNull();
 
-    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
-    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Grace" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Grace" }));
     expect(within(host).getByLabelText("Grace: 2 points")).toBeVisible();
     expect(within(host).getByLabelText("Faith: 0 points")).toBeVisible();
 
@@ -409,7 +409,7 @@ describe("hosted session integrity", () => {
       playlist: [{ ...defaultSessionConfig.playlist[0], roundCount: 2, timerSeconds: null }],
     });
     const host = screen.getByRole("navigation", { name: "Host Controls" });
-    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Grace" }));
     fireEvent.click(within(host).getByRole("button", { name: "Edit player scoring settings" }));
     fireEvent.click(screen.getByRole("button", { name: /Team Play/ }));
     expect(screen.getByRole("alertdialog", { name: "Change to Team Play?" })).toHaveTextContent("1 score change");
@@ -443,8 +443,8 @@ describe("hosted session integrity", () => {
       playlist: [{ ...defaultSessionConfig.playlist[0], timerSeconds: null }],
     });
     const host = screen.getByRole("navigation", { name: "Host Controls" });
-    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
-    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Faith" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Grace" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add 1 point to Faith" }));
     fireEvent.click(within(host).getByRole("button", { name: "Edit player scoring settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Remove Grace" }));
     expect(screen.getByRole("alertdialog", { name: "Remove Grace?" })).toBeVisible();

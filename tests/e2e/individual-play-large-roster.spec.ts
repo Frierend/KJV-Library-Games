@@ -37,7 +37,7 @@ test("20-player Individual Play remains scrollable, persistent, and fully inspec
   expect(listMetrics.scrollHeight).toBeGreaterThan(listMetrics.clientHeight);
   expect(listMetrics.scrollWidth).toBeLessThanOrEqual(listMetrics.clientWidth + 1);
 
-  await host.getByRole("button", { name: `Add one point to ${PLAYER_NAMES[19]}` }).click();
+  await host.getByRole("button", { name: `Add 1 point to ${PLAYER_NAMES[19]}` }).click();
   await expect(cards.filter({ hasText: PLAYER_NAMES[19] }).locator("strong")).toHaveText("1");
 
   await page.reload();

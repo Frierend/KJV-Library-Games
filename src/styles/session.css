@@ -78,12 +78,18 @@
 }
 
 .info-tip__button:hover,
-.info-tip__button:focus-visible,
 .info-tip__button[aria-expanded="true"] {
   border-color: #9dc9c1;
   background: var(--surface-teal);
   color: var(--primary);
-  outline: none;
+}
+
+.info-tip__button:focus-visible {
+  border-color: var(--primary);
+  background: var(--surface-teal);
+  color: var(--primary);
+  outline: 3px solid #176aa9;
+  outline-offset: 2px;
 }
 
 .info-tip__content {

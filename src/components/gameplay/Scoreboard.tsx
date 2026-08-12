@@ -125,12 +125,12 @@ export function Scoreboard({
                   <div className="score-team__actions score-competitor__actions">
                     <IconButton
                       icon={<Minus size={16} />}
-                      label={`Remove one point from ${competitor.name}`}
+                      label={`Subtract 1 point from ${competitor.name}`}
                       onClick={() => dispatch({ type: "SCORE", competitorId: competitor.id, delta: -1 })}
                     />
                     <IconButton
                       icon={<Plus size={16} />}
-                      label={`Add one point to ${competitor.name}`}
+                      label={`Add 1 point to ${competitor.name}`}
                       onClick={() => dispatch({ type: "SCORE", competitorId: competitor.id, delta: 1 })}
                     />
                   </div>
