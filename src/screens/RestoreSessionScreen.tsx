@@ -17,7 +17,7 @@ export function RestoreSessionScreen() {
         <h1>Continue where you left off?</h1>
         <p>
           {activeSession.config.title} is at round {activeSession.roundIndex + 1} of{" "}
-          {activeSession.preparedRounds.length}. The timer is paused.
+          {activeSession.preparedRounds.length}. The time limit is paused.
         </p>
         <div className="setup-actions">
           <Button onClick={() => navigate(`/play/${activeSession.id}`)}>Continue Session</Button>

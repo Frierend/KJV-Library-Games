@@ -1,7 +1,7 @@
 import type { LetterTile } from "../games/four-pics/fourPicsLogic";
 import type { GameId } from "../games/types";
 
-export const SESSION_SCHEMA_VERSION = 1;
+export const SESSION_SCHEMA_VERSION = 2;
 
 export type RoundResult =
   | "unchecked"
@@ -11,7 +11,7 @@ export type RoundResult =
   | "revealed"
   | "expired";
 
-export type SessionMode = "fellowship" | "team" | "study";
+export type SessionMode = "fellowship" | "individual" | "team" | "study";
 export type ExpiryBehavior = "require-reveal" | "allow-skip" | "auto-reveal";
 export type QuestionOrder = "random" | "source";
 export type MotionPreference = "system" | "full" | "reduced";
@@ -33,11 +33,17 @@ export interface TeamConfig {
   color: "blue" | "teal" | "gold" | "lavender" | "coral" | "green";
 }
 
+export interface PlayerConfig {
+  id: string;
+  name: string;
+}
+
 export interface SessionConfig {
   title: string;
   mode: SessionMode;
   playlist: GamePlaylistItem[];
   teams: TeamConfig[];
+  players: PlayerConfig[];
   showAudienceScores: boolean;
   soundEnabled: boolean;
   motion: MotionPreference;
@@ -93,7 +99,7 @@ export interface TimerState {
 
 export interface ScoreEvent {
   id: string;
-  teamId: string;
+  competitorId: string;
   delta: 1 | -1;
   roundId: string;
   createdAt: string;

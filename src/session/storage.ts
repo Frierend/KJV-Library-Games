@@ -1,10 +1,15 @@
 import { contentRecordExists } from "../content/registry";
 import { CONTENT_VERSION } from "../content/types";
-import { migrateSessionSnapshot } from "./storageMigrations";
+import { migrateSessionConfig, migrateSessionSnapshot } from "./storageMigrations";
 import {
   SESSION_SCHEMA_VERSION,
   type ActiveSession,
+  type GamePlaylistItem,
+  type PlayerConfig,
+  type ScoreEvent,
+  type SessionConfig,
   type SessionPreset,
+  type TeamConfig,
   type UserPreferences,
 } from "./types";
 
@@ -24,6 +29,84 @@ export interface StoredSessionResult {
   error: string | null;
 }
 
+const sessionModes = ["fellowship", "individual", "team", "study"] as const;
+const teamColors = ["blue", "teal", "gold", "lavender", "coral", "green"] as const;
+
+function normalizedName(name: string) {
+  return name.trim().toLowerCase();
+}
+
+function hasUniqueNames(entries: readonly { name: string }[]) {
+  const names = entries.map((entry) => normalizedName(entry.name));
+  return names.every(Boolean) && new Set(names).size === names.length;
+}
+
+function isTeamConfig(value: unknown): value is TeamConfig {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<TeamConfig>;
+  return typeof candidate.id === "string" && Boolean(candidate.id) &&
+    typeof candidate.name === "string" && candidate.name.trim().length <= 24 &&
+    teamColors.includes(candidate.color as TeamConfig["color"]);
+}
+
+function isPlayerConfig(value: unknown): value is PlayerConfig {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<PlayerConfig>;
+  return typeof candidate.id === "string" && Boolean(candidate.id) &&
+    typeof candidate.name === "string" && candidate.name.trim().length <= 40;
+}
+
+function isPlaylistItem(value: unknown): value is GamePlaylistItem {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<GamePlaylistItem>;
+  return typeof candidate.id === "string" &&
+    (candidate.gameId === "quiz" || candidate.gameId === "four-pics") &&
+    candidate.contentPackId === "kjventure-core" &&
+    Number.isInteger(candidate.roundCount) && Number(candidate.roundCount) > 0 &&
+    (candidate.order === "random" || candidate.order === "source") &&
+    (candidate.timerSeconds === null ||
+      (Number.isInteger(candidate.timerSeconds) && Number(candidate.timerSeconds) >= 5)) &&
+    ["require-reveal", "allow-skip", "auto-reveal"].includes(candidate.expiryBehavior ?? "");
+}
+
+export function isSessionConfig(value: unknown): value is SessionConfig {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SessionConfig>;
+  if (
+    typeof candidate.title !== "string" ||
+    !sessionModes.includes(candidate.mode as SessionConfig["mode"]) ||
+    !Array.isArray(candidate.playlist) || !candidate.playlist.every(isPlaylistItem) ||
+    !Array.isArray(candidate.teams) || !candidate.teams.every(isTeamConfig) ||
+    !Array.isArray(candidate.players) || !candidate.players.every(isPlayerConfig) ||
+    typeof candidate.showAudienceScores !== "boolean" ||
+    typeof candidate.soundEnabled !== "boolean" ||
+    !["system", "full", "reduced"].includes(candidate.motion ?? "") ||
+    !["on-resolution", "always", "hidden"].includes(candidate.referenceDisplay ?? "") ||
+    typeof candidate.fullscreenAtStart !== "boolean"
+  ) return false;
+  if (new Set(candidate.teams.map((team) => team.id)).size !== candidate.teams.length) return false;
+  if (new Set(candidate.players.map((player) => player.id)).size !== candidate.players.length) return false;
+  if (!hasUniqueNames(candidate.teams) && candidate.teams.length > 0) return false;
+  if (!hasUniqueNames(candidate.players) && candidate.players.length > 0) return false;
+  if (candidate.mode === "team" && (candidate.teams.length < 2 || candidate.teams.length > 6)) {
+    return false;
+  }
+  if (candidate.mode === "individual" && (candidate.players.length < 1 || candidate.players.length > 50)) {
+    return false;
+  }
+  return true;
+}
+
+function isScoreEvent(value: unknown): value is ScoreEvent {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ScoreEvent>;
+  return typeof candidate.id === "string" &&
+    typeof candidate.competitorId === "string" &&
+    (candidate.delta === 1 || candidate.delta === -1) &&
+    typeof candidate.roundId === "string" &&
+    typeof candidate.createdAt === "string";
+}
+
 function isActiveSession(value: unknown): value is ActiveSession {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ActiveSession>;
@@ -37,9 +120,10 @@ function isActiveSession(value: unknown): value is ActiveSession {
     Number.isInteger(candidate.roundIndex) &&
     candidate.roundIndex >= 0 &&
     candidate.roundIndex < candidate.preparedRounds.length &&
-    Boolean(candidate.config) &&
-    Boolean(candidate.roundStates) &&
-    Boolean(candidate.timer)
+    isSessionConfig(candidate.config) &&
+    Boolean(candidate.roundStates) && typeof candidate.roundStates === "object" &&
+    Boolean(candidate.timer) && typeof candidate.timer === "object" &&
+    Array.isArray(candidate.scoreEvents) && candidate.scoreEvents.every(isScoreEvent)
   );
 }
 
@@ -122,14 +206,19 @@ export function readSavedPresets(): SessionPreset[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (preset): preset is SessionPreset =>
-        Boolean(preset) &&
-        typeof preset === "object" &&
-        typeof (preset as SessionPreset).id === "string" &&
-        typeof (preset as SessionPreset).title === "string" &&
-        Boolean((preset as SessionPreset).config),
-    );
+    return parsed.flatMap((preset) => {
+      if (!preset || typeof preset !== "object") return [];
+      const candidate = preset as Partial<SessionPreset>;
+      const config = migrateSessionConfig(candidate.config);
+      if (
+        typeof candidate.id !== "string" ||
+        typeof candidate.title !== "string" ||
+        typeof candidate.description !== "string" ||
+        typeof candidate.builtIn !== "boolean" ||
+        !isSessionConfig(config)
+      ) return [];
+      return [{ ...candidate, config } as SessionPreset];
+    });
   } catch {
     return [];
   }

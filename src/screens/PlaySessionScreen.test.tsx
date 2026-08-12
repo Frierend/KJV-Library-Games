@@ -71,7 +71,7 @@ function renderRestoredSession(sessionId: string) {
 }
 
 function openLeaveDialog() {
-  const opener = screen.getByTitle("Back to KJVenture");
+  const opener = screen.getByTitle("Back to Library");
   opener.focus();
   fireEvent.click(opener);
   expect(screen.getByRole("alertdialog", { name: "Leave this session?" })).toBeVisible();
@@ -225,7 +225,7 @@ describe("hosted session integrity", () => {
     );
 
     expect(
-      screen.getByText("Time’s up! You may continue or reveal the answer."),
+      screen.getByText("Time’s up! You may skip or reveal the answer."),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Finish" })).toBeEnabled();
   });
@@ -280,8 +280,8 @@ describe("hosted session integrity", () => {
         playlist: [createPlaylistItem(gameId, 0, { roundCount: 1, order: "source", timerSeconds: null })],
       });
 
-      const timer = screen.getByRole("timer", { name: "No timer" });
-      expect(timer).toHaveTextContent("No timer");
+      const timer = screen.getByRole("timer", { name: "No Time Limit" });
+      expect(timer).toHaveTextContent("No Time Limit");
       expect(timer).not.toHaveTextContent(/\d+:\d+/);
     },
   );
@@ -297,15 +297,15 @@ describe("hosted session integrity", () => {
         playlist: [{ ...defaultSessionConfig.playlist[0], timerSeconds: null }],
       });
       const stage = container.querySelector<HTMLElement>(".session-game-board");
-      const host = screen.getByRole("navigation", { name: "Host controls" });
+      const host = screen.getByRole("navigation", { name: "Host Controls" });
       expect(stage).not.toBeNull();
 
       if (showAudienceScores) {
-        expect(within(stage!).getByRole("region", { name: "Audience team scores" })).toBeVisible();
+        expect(within(stage!).getByRole("region", { name: "Audience Standings" })).toBeVisible();
       } else {
-        expect(within(stage!).queryByRole("region", { name: "Audience team scores" })).toBeNull();
+        expect(within(stage!).queryByRole("region", { name: "Audience Standings" })).toBeNull();
       }
-      expect(within(host).getByRole("region", { name: "Host score controls" })).toBeVisible();
+      expect(within(host).getByRole("region", { name: "Host Team Score Controls" })).toBeVisible();
 
       fireEvent.click(within(host).getByRole("button", { name: "Add one point to Blue" }));
       expect(within(host).getByLabelText("Blue: 1 points")).toBeVisible();
@@ -336,7 +336,7 @@ describe("hosted session integrity", () => {
       ],
     };
     const firstView = renderHostedSession(config);
-    const host = screen.getByRole("navigation", { name: "Host controls" });
+    const host = screen.getByRole("navigation", { name: "Host Controls" });
     fireEvent.click(within(host).getByRole("button", { name: "Add one point to Blue" }));
     fireEvent.click(within(host).getByRole("button", { name: "Reveal Answer" }));
     fireEvent.click(within(host).getByRole("button", { name: "Next" }));
@@ -349,14 +349,133 @@ describe("hosted session integrity", () => {
 
     firstView.unmount();
     renderRestoredSession(saved.id);
-    const restoredHost = screen.getByRole("navigation", { name: "Host controls" });
+    const restoredHost = screen.getByRole("navigation", { name: "Host Controls" });
     expect(document.querySelector(".four-pics-board")).toBeVisible();
     expect(within(restoredHost).getByLabelText("Blue: 1 points")).toBeVisible();
-    expect(screen.queryByRole("region", { name: "Audience team scores" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Audience Standings" })).toBeNull();
 
     const letter = document.querySelector<HTMLButtonElement>(".letter-bank button:not([disabled])");
     expect(letter).not.toBeNull();
     fireEvent.click(letter!);
     expect(letter).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("scores individual players independently without answer-driven points and confirms a full reset", () => {
+    renderHostedSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-grace", name: "Grace" },
+        { id: "player-faith", name: "Faith" },
+      ],
+      playlist: [{ ...defaultSessionConfig.playlist[0], roundCount: 1, timerSeconds: null }],
+    });
+    const host = screen.getByRole("navigation", { name: "Host Controls" });
+    const stage = document.querySelector<HTMLElement>(".session-game-board");
+    expect(stage).not.toBeNull();
+    expect(within(stage!).getByRole("region", { name: "Audience Standings" })).toBeVisible();
+    expect(within(host).getByRole("region", { name: "Host Player Score Controls" })).toBeVisible();
+    expect(within(host).queryByText(/^Team/)).toBeNull();
+
+    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
+    expect(within(host).getByLabelText("Grace: 2 points")).toBeVisible();
+    expect(within(host).getByLabelText("Faith: 0 points")).toBeVisible();
+
+    fireEvent.click(within(host).getByRole("button", { name: "Reveal Answer" }));
+    expect(within(host).getByLabelText("Grace: 2 points")).toBeVisible();
+    fireEvent.click(within(host).getByRole("button", { name: "Reset Round" }));
+    expect(within(host).getByLabelText("Grace: 2 points")).toBeVisible();
+
+    fireEvent.click(within(host).getByRole("button", { name: "Reset all player scores" }));
+    expect(screen.getByRole("alertdialog", { name: "Reset All Scores?" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(within(host).getByLabelText("Grace: 2 points")).toBeVisible();
+
+    fireEvent.click(within(host).getByRole("button", { name: "Reset all player scores" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset All Scores" }));
+    expect(within(host).getByLabelText("Grace: 0 points")).toBeVisible();
+    expect(JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null").scoreEvents).toEqual([]);
+  });
+
+  it("cancels or confirms an in-play Individual-to-Team change without touching round progress", () => {
+    renderHostedSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-grace", name: "Grace" },
+        { id: "player-faith", name: "Faith" },
+      ],
+      playlist: [{ ...defaultSessionConfig.playlist[0], roundCount: 2, timerSeconds: null }],
+    });
+    const host = screen.getByRole("navigation", { name: "Host Controls" });
+    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Edit player scoring settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /Team Play/ }));
+    expect(screen.getByRole("alertdialog", { name: "Change to Team Play?" })).toHaveTextContent("1 score change");
+    fireEvent.click(screen.getByRole("button", { name: "Keep Individual Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(within(host).getByLabelText("Grace: 1 points")).toBeVisible();
+
+    fireEvent.click(within(host).getByRole("button", { name: "Edit player scoring settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /Team Play/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear and Change Mode" }));
+    expect(screen.getByLabelText("Team 1 name")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Save Scoring Settings" }));
+
+    expect(within(host).getByRole("region", { name: "Host Team Score Controls" })).toBeVisible();
+    expect(within(host).getByLabelText("Team 1: 0 points")).toBeVisible();
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    expect(stored.config.mode).toBe("team");
+    expect(stored.config.players).toEqual([]);
+    expect(stored.scoreEvents).toEqual([]);
+    expect(stored.roundIndex).toBe(0);
+  });
+
+  it("confirms removal of a scored player and preserves every other score event", () => {
+    renderHostedSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-grace", name: "Grace" },
+        { id: "player-faith", name: "Faith" },
+      ],
+      playlist: [{ ...defaultSessionConfig.playlist[0], timerSeconds: null }],
+    });
+    const host = screen.getByRole("navigation", { name: "Host Controls" });
+    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Grace" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Add one point to Faith" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Edit player scoring settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Grace" }));
+    expect(screen.getByRole("alertdialog", { name: "Remove Grace?" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Player" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Scoring Settings" }));
+
+    expect(within(host).queryByLabelText(/Grace:/)).toBeNull();
+    expect(within(host).getByLabelText("Faith: 1 points")).toBeVisible();
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    expect(stored.scoreEvents).toHaveLength(1);
+    expect(stored.scoreEvents[0].competitorId).toBe("player-faith");
+  });
+
+  it("renders every tied individual winner in the final result", () => {
+    renderHostedSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-a", name: "Anna" },
+        { id: "player-b", name: "Beth" },
+      ],
+      playlist: [{ ...defaultSessionConfig.playlist[0], roundCount: 1, timerSeconds: null }],
+    });
+    const host = screen.getByRole("navigation", { name: "Host Controls" });
+    fireEvent.click(within(host).getByRole("button", { name: "Reveal Answer" }));
+    fireEvent.click(within(host).getByRole("button", { name: "Finish" }));
+
+    expect(screen.getByRole("heading", { name: "Final Results" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Player Standings" })).toBeVisible();
+    expect(screen.getByText("Joint Winners: Anna, Beth — 0 points.")).toBeVisible();
+    expect(screen.getByText("Anna")).toBeVisible();
+    expect(screen.getByText("Beth")).toBeVisible();
   });
 });

@@ -9,7 +9,7 @@ export function ExploreGamesScreen() {
       <section className="screen-heading">
         <span className="eyebrow">KJVenture Library</span>
         <h1>Explore Games</h1>
-        <p>Quick play keeps each game’s familiar setup and host-led flow.</p>
+        <p>Quick Play keeps each game’s familiar setup and host-led flow.</p>
       </section>
       <section className="game-grid product-game-grid" aria-label="Available Bible games">
         <GameCard

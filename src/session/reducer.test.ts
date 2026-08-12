@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { createActiveSession } from "./createSession";
 import { defaultSessionConfig } from "./presets";
 import { sessionReducer } from "./reducer";
-import { canAdvance, currentPreparedRound, currentRoundState, teamScores } from "./selectors";
+import {
+  canAdvance,
+  competitorScores,
+  currentPreparedRound,
+  currentRoundState,
+  rankedStandings,
+  teamScores,
+  winningStandings,
+} from "./selectors";
 
 describe("session reducer", () => {
   it("does not advance an unchecked round", () => {
@@ -82,10 +90,150 @@ describe("session reducer", () => {
         { id: "team-2", name: "Gold", color: "gold" },
       ],
     });
-    session = sessionReducer(session, { type: "SCORE", teamId: "team-1", delta: 1 });
-    session = sessionReducer(session, { type: "SCORE", teamId: "team-1", delta: 1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "team-1", delta: 1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "team-1", delta: 1 });
     expect(teamScores(session).get("team-1")).toBe(2);
     session = sessionReducer(session, { type: "UNDO_SCORE" });
     expect(teamScores(session).get("team-1")).toBe(1);
+  });
+
+  it("updates individual scores independently by stable player ID under rapid dispatches", () => {
+    let session = createActiveSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-grace", name: "Grace" },
+        { id: "player-faith", name: "Faith" },
+      ],
+    });
+    for (let index = 0; index < 20; index += 1) {
+      session = sessionReducer(session, {
+        type: "SCORE",
+        competitorId: "player-grace",
+        delta: 1,
+      });
+    }
+    session = sessionReducer(session, {
+      type: "SCORE",
+      competitorId: "player-faith",
+      delta: -1,
+    });
+
+    expect(competitorScores(session)).toEqual(new Map([
+      ["player-grace", 20],
+      ["player-faith", -1],
+    ]));
+    session = sessionReducer(session, { type: "UNDO_SCORE" });
+    expect(competitorScores(session).get("player-grace")).toBe(20);
+    expect(competitorScores(session).get("player-faith")).toBe(0);
+  });
+
+  it("keeps scores through a round reset and requires a dedicated full reset", () => {
+    let session = createActiveSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [{ id: "player-1", name: "One" }],
+    });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-1", delta: 1 });
+    session = sessionReducer(session, { type: "RESET_ROUND" });
+    expect(competitorScores(session).get("player-1")).toBe(1);
+    session = sessionReducer(session, { type: "RESET_SCORES" });
+    expect(competitorScores(session).get("player-1")).toBe(0);
+    expect(session.scoreEvents).toHaveLength(0);
+  });
+
+  it("clears incompatible scoring state on mode changes but preserves renamed stable IDs", () => {
+    let session = createActiveSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-1", name: "One" },
+        { id: "player-2", name: "Two" },
+      ],
+    });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-1", delta: 1 });
+    session = sessionReducer(session, {
+      type: "CONFIGURE_SCORING",
+      mode: "individual",
+      players: [
+        { id: "player-1", name: "Renamed" },
+        { id: "player-2", name: "Two" },
+      ],
+      teams: [],
+    });
+    expect(competitorScores(session).get("player-1")).toBe(1);
+
+    session = sessionReducer(session, {
+      type: "CONFIGURE_SCORING",
+      mode: "team",
+      players: [],
+      teams: [
+        { id: "team-a", name: "Alpha", color: "blue" },
+        { id: "team-b", name: "Beta", color: "gold" },
+      ],
+    });
+    expect(session.config.mode).toBe("team");
+    expect(session.config.players).toEqual([]);
+    expect(session.scoreEvents).toEqual([]);
+  });
+
+  it("removes only the deleted competitor's score history", () => {
+    let session = createActiveSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-1", name: "One" },
+        { id: "player-2", name: "Two" },
+      ],
+    });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-1", delta: 1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-2", delta: 1 });
+    session = sessionReducer(session, {
+      type: "CONFIGURE_SCORING",
+      mode: "individual",
+      players: [{ id: "player-2", name: "Two" }],
+      teams: [],
+    });
+    expect(session.scoreEvents).toHaveLength(1);
+    expect(session.scoreEvents[0].competitorId).toBe("player-2");
+  });
+
+  it("uses shared competition ranks and reports every tied winner", () => {
+    let session = createActiveSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-a", name: "A" },
+        { id: "player-b", name: "B" },
+        { id: "player-c", name: "C" },
+        { id: "player-d", name: "D" },
+      ],
+    });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-a", delta: -1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-b", delta: -1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-c", delta: -1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-c", delta: -1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-d", delta: -1 });
+    session = sessionReducer(session, { type: "SCORE", competitorId: "player-d", delta: -1 });
+
+    expect(rankedStandings(session).map(({ name, score, rank }) => ({ name, score, rank }))).toEqual([
+      { name: "A", score: -1, rank: 1 },
+      { name: "B", score: -1, rank: 1 },
+      { name: "C", score: -2, rank: 3 },
+      { name: "D", score: -2, rank: 3 },
+    ]);
+    expect(winningStandings(session).map((standing) => standing.name)).toEqual(["A", "B"]);
+  });
+
+  it("treats every all-zero player as a tied winner in stable roster order", () => {
+    const session = createActiveSession({
+      ...defaultSessionConfig,
+      mode: "individual",
+      players: [
+        { id: "player-b", name: "B" },
+        { id: "player-a", name: "A" },
+      ],
+    });
+    expect(winningStandings(session).map((standing) => standing.name)).toEqual(["B", "A"]);
   });
 });

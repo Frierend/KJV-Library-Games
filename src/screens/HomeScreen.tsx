@@ -62,7 +62,7 @@ export function HomeScreen() {
             <h2>Continue Last Session</h2>
             <p>
               {activeSession.config.title} · Round {activeSession.roundIndex + 1} of{" "}
-              {activeSession.preparedRounds.length}. The timer will remain paused.
+              {activeSession.preparedRounds.length}. The time limit will remain paused.
             </p>
             <div className="journey-card__actions">
               <Button onClick={() => navigate(`/play/${activeSession.id}`)}>
@@ -73,7 +73,7 @@ export function HomeScreen() {
                 onClick={() => setConfirmDiscard(true)}
                 variant="ghost"
               >
-                Discard
+                Discard Session
               </Button>
             </div>
           </article>
@@ -86,7 +86,7 @@ export function HomeScreen() {
         </Link>
         <Link className="journey-card" to="/games">
           <Gamepad2 aria-hidden="true" />
-          <span className="eyebrow">Quick play</span>
+          <span className="eyebrow">Quick Play</span>
           <h2>Explore Games</h2>
           <p>Open the 100-question quiz or all 30 Four Pics puzzles directly.</p>
         </Link>
@@ -94,7 +94,7 @@ export function HomeScreen() {
           <Download aria-hidden="true" />
           <span className="eyebrow">On this device</span>
           <h2>Saved Presets</h2>
-          <p>{savedPresets.length} custom preset{savedPresets.length === 1 ? "" : "s"} saved locally.</p>
+          <p>{savedPresets.length} custom preset{savedPresets.length === 1 ? "" : "s"} saved on this device.</p>
         </Link>
       </section>
 

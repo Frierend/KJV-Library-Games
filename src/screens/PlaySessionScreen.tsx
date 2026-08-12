@@ -8,11 +8,16 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { GameTopBar } from "../components/gameplay/GameTopBar";
 import { HostControlDock } from "../components/gameplay/HostControlDock";
 import { Scoreboard } from "../components/gameplay/Scoreboard";
+import {
+  ScoringSettingsDialog,
+  type ScoringSettingsDraft,
+} from "../components/gameplay/ScoringSettingsDialog";
+import { StandingsDialog } from "../components/gameplay/StandingsDialog";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { getFourPicsRecord, getQuizRecord } from "../content/registry";
@@ -40,7 +45,7 @@ function SessionCompletion() {
     <main className="app-shell completion-screen">
       <section className="completion-card">
         <span className="eyebrow">KJVenture</span>
-        <h1>Session Complete</h1>
+        <h1>Final Results</h1>
         <p>{activeSession.preparedRounds.length} rounds completed.</p>
         <Scoreboard dispatch={() => undefined} readOnly session={activeSession} />
         <div className="setup-actions">
@@ -64,9 +69,11 @@ function SessionCompletion() {
 function QuizRound({
   round,
   state,
+  onOpenStandings,
 }: {
   round: PreparedQuizRound;
   state: QuizRoundState;
+  onOpenStandings: () => void;
 }) {
   const { activeSession, dispatch } = useSession();
   const record = getQuizRecord(round.contentId);
@@ -81,7 +88,13 @@ function QuizRound({
   return (
     <section className="quiz-board session-game-board" aria-labelledby="session-round-heading">
       {activeSession.config.showAudienceScores && (
-        <Scoreboard audience dispatch={dispatch} readOnly session={activeSession} />
+        <Scoreboard
+          audience
+          dispatch={dispatch}
+          onOpenStandings={onOpenStandings}
+          readOnly
+          session={activeSession}
+        />
       )}
       <div className="question-row">
         <span className="question-number">
@@ -133,7 +146,7 @@ function QuizRound({
         {state.result === "expired" && (
           <strong>
             {round.expiryBehavior === "allow-skip"
-              ? "Time’s up! You may continue or reveal the answer."
+              ? "Time’s up! You may skip or reveal the answer."
               : "Time’s up! Reveal the answer to continue."}
           </strong>
         )}
@@ -175,9 +188,11 @@ function PictureGrid({ round }: { round: PreparedFourPicsRound }) {
 function FourPicsRound({
   round,
   state,
+  onOpenStandings,
 }: {
   round: PreparedFourPicsRound;
   state: FourPicsRoundState;
+  onOpenStandings: () => void;
 }) {
   const { activeSession, dispatch } = useSession();
   const record = getFourPicsRecord(round.contentId);
@@ -213,7 +228,13 @@ function FourPicsRound({
     >
       <PictureGrid round={round} />
       {activeSession.config.showAudienceScores && (
-        <Scoreboard audience dispatch={dispatch} readOnly session={activeSession} />
+        <Scoreboard
+          audience
+          dispatch={dispatch}
+          onOpenStandings={onOpenStandings}
+          readOnly
+          session={activeSession}
+        />
       )}
       <div className="word-panel">
         <span className="eyebrow">Find the Bible word</span>
@@ -265,7 +286,7 @@ function FourPicsRound({
             onClick={() => dispatch({ type: "FOUR_DELETE_LETTER" })}
             variant="ghost"
           >
-            Delete
+            Delete Last Letter
           </Button>
           <Button
             disabled={state.selectedIds.length === 0 || blocked}
@@ -291,7 +312,7 @@ function FourPicsRound({
           {state.result === "expired" && (
             <strong>
               {round.expiryBehavior === "allow-skip"
-                ? "Time’s up! You may continue or reveal the answer."
+                ? "Time’s up! You may skip or reveal the answer."
                 : "Time’s up! Reveal the answer to continue."}
             </strong>
           )}
@@ -319,10 +340,12 @@ export function PlaySessionScreen() {
     ? routeState.fullscreenFailure
     : null;
   const [confirmExit, setConfirmExit] = useState(false);
+  const [scoringOverlay, setScoringOverlay] = useState<"settings" | "standings" | "reset" | null>(null);
   const activeSessionRef = useRef(activeSession);
   const navigationLock = useRef(false);
   const lastSoundSecond = useRef<number | null>(null);
   const timerWasRunningBeforeLeave = useRef(false);
+  const timerWasRunningBeforeScoringOverlay = useRef(false);
   activeSessionRef.current = activeSession;
 
   const round = activeSession ? currentPreparedRound(activeSession) : undefined;
@@ -334,6 +357,37 @@ export function PlaySessionScreen() {
   const secondsLeft = activeSession?.timer.enabled
     ? Math.ceil(activeSession.timer.remainingMs / 1_000)
     : null;
+
+  const openScoringOverlay = useCallback((overlay: "settings" | "standings" | "reset") => {
+    const session = activeSessionRef.current;
+    timerWasRunningBeforeScoringOverlay.current = Boolean(
+      session?.status === "active" &&
+      session.timer.enabled &&
+      session.timer.status === "running",
+    );
+    if (session?.timer.status === "running") {
+      dispatch({ type: "PAUSE_TIMER_FOR_DIALOG" });
+    }
+    setScoringOverlay(overlay);
+  }, [dispatch]);
+
+  const closeScoringOverlay = useCallback(() => {
+    setScoringOverlay(null);
+    if (timerWasRunningBeforeScoringOverlay.current) {
+      dispatch({ type: "RESUME_TIMER" });
+    }
+    timerWasRunningBeforeScoringOverlay.current = false;
+  }, [dispatch]);
+
+  const saveScoringSettings = useCallback((draft: ScoringSettingsDraft) => {
+    dispatch({
+      type: "CONFIGURE_SCORING",
+      mode: draft.mode,
+      players: draft.players,
+      teams: draft.teams,
+    });
+    closeScoringOverlay();
+  }, [closeScoringOverlay, dispatch]);
 
   useEffect(() => {
     navigationLock.current = false;
@@ -388,6 +442,7 @@ export function PlaySessionScreen() {
   useEffect(() => {
     if (
       confirmExit ||
+      scoringOverlay !== null ||
       !activeSession ||
       !round ||
       !roundState ||
@@ -444,7 +499,7 @@ export function PlaySessionScreen() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [activeSession, advanceAllowed, confirmExit, dispatch, round, roundState, submitFourPics]);
+  }, [activeSession, advanceAllowed, confirmExit, dispatch, round, roundState, scoringOverlay, submitFourPics]);
 
   if (!activeSession) return <Navigate replace to="/" />;
   if (activeSession.id !== sessionId) return <Navigate replace to="/restore" />;
@@ -492,15 +547,31 @@ export function PlaySessionScreen() {
       />
 
       {round.gameId === "quiz" && roundState.gameId === "quiz" ? (
-        <QuizRound round={round} state={roundState} />
+        <QuizRound
+          onOpenStandings={() => openScoringOverlay("standings")}
+          round={round}
+          state={roundState}
+        />
       ) : round.gameId === "four-pics" && roundState.gameId === "four-pics" ? (
-        <FourPicsRound round={round} state={roundState} />
+        <FourPicsRound
+          onOpenStandings={() => openScoringOverlay("standings")}
+          round={round}
+          state={roundState}
+        />
       ) : null}
 
       <HostControlDock
         scoreControls={
-          activeSession.config.mode === "team" && activeSession.config.teams.length > 0
-            ? <Scoreboard dispatch={dispatch} session={activeSession} />
+          ((activeSession.config.mode === "team" && activeSession.config.teams.length > 0) ||
+            (activeSession.config.mode === "individual" && activeSession.config.players.length > 0))
+            ? (
+              <Scoreboard
+                dispatch={dispatch}
+                onConfigure={() => openScoringOverlay("settings")}
+                onResetScores={() => openScoringOverlay("reset")}
+                session={activeSession}
+              />
+            )
             : undefined
         }
         start={
@@ -513,7 +584,7 @@ export function PlaySessionScreen() {
               }}
               variant="ghost"
             >
-              Studio
+              Session Studio
             </Button>
             <Button
               disabled={activeSession.roundIndex === 0}
@@ -579,6 +650,32 @@ export function PlaySessionScreen() {
         }}
         open={confirmExit}
         title="Leave this session?"
+      />
+
+      <ConfirmDialog
+        confirmLabel="Reset All Scores"
+        description={`This permanently clears every ${activeSession.config.mode === "individual" ? "player" : "team"} score in this session. Rounds and answers are not affected.`}
+        destructive
+        onCancel={closeScoringOverlay}
+        onConfirm={() => {
+          dispatch({ type: "RESET_SCORES" });
+          closeScoringOverlay();
+        }}
+        open={scoringOverlay === "reset"}
+        title="Reset All Scores?"
+      />
+
+      <ScoringSettingsDialog
+        onCancel={closeScoringOverlay}
+        onSave={saveScoringSettings}
+        open={scoringOverlay === "settings"}
+        session={activeSession}
+      />
+
+      <StandingsDialog
+        onClose={closeScoringOverlay}
+        open={scoringOverlay === "standings"}
+        session={activeSession}
       />
     </main>
   );

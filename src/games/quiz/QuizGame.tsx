@@ -223,7 +223,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
     return (
       <main className="app-shell setup-screen">
         <button className="back-link" onClick={onExit}>
-          <ArrowLeft aria-hidden="true" size={18} /> All Games
+          <ArrowLeft aria-hidden="true" size={18} /> Back to Library
         </button>
         <section className="setup-card">
           <span className="eyebrow">Game 01</span>
@@ -232,7 +232,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
 
           <div className="setup-grid">
             <fieldset className="setup-panel">
-              <legend>Countdown</legend>
+              <legend>Time Limit</legend>
               <div className="option-grid option-grid--four">
                 {durations.map((seconds) => (
                   <button
@@ -249,7 +249,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
             </fieldset>
 
             <fieldset className="setup-panel">
-              <legend>Questions</legend>
+              <legend>Number of Questions</legend>
               <div className="option-grid option-grid--three">
                 {countOptions.map((count) => (
                   <button
@@ -281,7 +281,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
               </div>
               {customMode && (
                 <label className="custom-field">
-                  <span>Custom total</span>
+                  <span>Custom Number of Questions</span>
                   <input
                     aria-describedby="quiz-custom-total-help"
                     aria-invalid={Boolean(customError)}
@@ -337,7 +337,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
               New Mixed Game
             </button>
             <button className="button button--ghost" onClick={onExit}>
-              All Games
+              Back to Library
             </button>
           </div>
         </section>
@@ -421,7 +421,7 @@ export default function QuizGame({ onExit }: QuizGameProps) {
         </div>
       </section>
 
-      <nav aria-label="Host controls" className="game-controls host-control-dock">
+      <nav aria-label="Host Controls" className="game-controls host-control-dock">
         <div>
           <button className="button button--ghost" onClick={backToSetup}>
             Setup

@@ -309,7 +309,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
     return (
       <main className="app-shell setup-screen setup-screen--four-pics">
         <button className="back-link" onClick={onExit}>
-          <ArrowLeft aria-hidden="true" size={18} /> All Games
+          <ArrowLeft aria-hidden="true" size={18} /> Back to Library
         </button>
         <section className="setup-card">
           <span className="eyebrow">Game 02</span>
@@ -318,7 +318,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
 
           <div className="setup-grid">
             <fieldset className="setup-panel">
-              <legend>Countdown</legend>
+              <legend>Time Limit</legend>
               <div className="option-grid option-grid--four">
                 {durations.map((seconds) => (
                   <button
@@ -335,7 +335,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
             </fieldset>
 
             <fieldset className="setup-panel">
-              <legend>Rounds</legend>
+              <legend>Number of Puzzles</legend>
               <div className="option-grid option-grid--rounds">
                 {roundOptions.map((count) => (
                   <button
@@ -367,7 +367,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
               </div>
               {customMode && (
                 <label className="custom-field">
-                  <span>Custom rounds</span>
+                  <span>Custom Number of Puzzles</span>
                   <input
                     aria-describedby="four-pics-custom-help"
                     aria-invalid={Boolean(customError)}
@@ -437,7 +437,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
               New Mixed Game
             </button>
             <button className="button button--ghost" onClick={onExit}>
-              All Games
+              Back to Library
             </button>
           </div>
         </section>
@@ -556,7 +556,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
               }
               onClick={removeLastLetter}
             >
-              Delete
+              Delete Last Letter
             </button>
             <button
               className="button button--primary"
@@ -603,7 +603,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
         </div>
       </section>
 
-      <nav className="game-controls host-control-dock" aria-label="Host controls">
+      <nav className="game-controls host-control-dock" aria-label="Host Controls">
         <div>
           <button className="button button--ghost" onClick={backToSetup}>
             Setup

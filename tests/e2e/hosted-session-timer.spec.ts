@@ -9,10 +9,10 @@ async function startSixTeamMixedSession(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/studio");
   await page.getByRole("button", { name: /family game night/i }).click();
-  await page.getByLabel("KJV Bible Quiz rounds").fill("1");
-  await page.getByLabel("4 Pics 1 Word rounds").fill("1");
-  await page.getByLabel("KJV Bible Quiz timer seconds").fill("300");
-  await page.getByLabel("4 Pics 1 Word timer seconds").fill("300");
+  await page.getByLabel("KJV Bible Quiz number of questions").fill("1");
+  await page.getByLabel("4 Pics 1 Word number of puzzles").fill("1");
+  await page.getByLabel("KJV Bible Quiz time limit").fill("300");
+  await page.getByLabel("4 Pics 1 Word time limit").fill("300");
 
   const names = [
     "A",
@@ -30,7 +30,7 @@ async function startSixTeamMixedSession(page: Page) {
     await page.getByLabel(`Team ${index + 1} name`).fill(names[index]);
   }
 
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
   await expect(page.locator(".quiz-board.session-game-board")).toBeVisible();
 }
 
@@ -52,7 +52,7 @@ test("hosted Quiz countdown, pause, resume, and restoration use clock formatting
   await expect(timer).toHaveAccessibleName("4 minutes 59 seconds remaining");
   await capture(page, testInfo, "quiz-running-844x390.png");
 
-  const host = page.getByRole("navigation", { name: "Host controls" });
+  const host = page.getByRole("navigation", { name: "Host Controls" });
   await host.getByRole("button", { name: "Pause" }).click();
   const pausedValue = await timer.textContent();
   await expect(timer).toHaveAccessibleName(/remaining, paused$/);
@@ -63,7 +63,7 @@ test("hosted Quiz countdown, pause, resume, and restoration use clock formatting
   await expect(restoredTimer).toHaveText(pausedValue ?? "");
   await expect(restoredTimer).toHaveAccessibleName(/remaining, paused$/);
 
-  const restoredHost = page.getByRole("navigation", { name: "Host controls" });
+  const restoredHost = page.getByRole("navigation", { name: "Host Controls" });
   await restoredHost.getByRole("button", { name: "Resume" }).click();
   await expect(restoredTimer).not.toHaveText(pausedValue ?? "");
   await expect(restoredTimer).toHaveAccessibleName(/remaining$/);
@@ -71,7 +71,7 @@ test("hosted Quiz countdown, pause, resume, and restoration use clock formatting
 
 test("hosted Four Pics formats time and keeps resolved feedback and navigation unobscured", async ({ page }, testInfo) => {
   await startSixTeamMixedSession(page);
-  const host = page.getByRole("navigation", { name: "Host controls" });
+  const host = page.getByRole("navigation", { name: "Host Controls" });
   await host.getByRole("button", { name: "Reveal Answer" }).click();
   await host.getByRole("button", { name: "Next" }).click();
   await expect(page.locator(".four-pics-board.session-game-board")).toBeVisible();
@@ -89,7 +89,7 @@ test("hosted Four Pics formats time and keeps resolved feedback and navigation u
   await capture(page, testInfo, "four-pics-running-1366x768.png");
 
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.getByRole("navigation", { name: "Host controls" })
+  await page.getByRole("navigation", { name: "Host Controls" })
     .getByRole("button", { name: "Reveal Answer" })
     .click();
   const feedback = page.locator(".four-pics-board .feedback:not(.feedback--empty)");
@@ -136,10 +136,10 @@ test("hosted Four Pics formats time and keeps resolved feedback and navigation u
 
 test("a disabled hosted timer shows the no-timer state without a numeric clock", async ({ page }) => {
   await page.goto("/studio");
-  await page.getByLabel("No timer").check();
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByLabel("No Time Limit").check();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
 
-  const timer = page.getByRole("timer", { name: "No timer" });
-  await expect(timer).toHaveText("No timer");
+  const timer = page.getByRole("timer", { name: "No Time Limit" });
+  await expect(timer).toHaveText("No Time Limit");
   await expect(timer).not.toHaveText(/\d+:\d+/);
 });

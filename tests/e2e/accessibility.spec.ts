@@ -20,7 +20,7 @@ test("library, Studio, and gameplay have no serious axe violations", async ({ pa
   await expect(page.getByRole("heading", { name: "Session Studio" })).toBeVisible();
   await expectNoSeriousViolations(page);
 
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
   await expect(page.getByText(/round 1 of 10/i)).toBeVisible();
   await expectNoSeriousViolations(page);
 });

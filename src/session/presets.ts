@@ -1,4 +1,10 @@
-import type { GamePlaylistItem, SessionConfig, SessionPreset, TeamConfig } from "./types";
+import type {
+  GamePlaylistItem,
+  PlayerConfig,
+  SessionConfig,
+  SessionPreset,
+  TeamConfig,
+} from "./types";
 
 const colors: TeamConfig["color"][] = [
   "blue",
@@ -14,6 +20,13 @@ export function createTeam(index: number): TeamConfig {
     id: `team-${index + 1}`,
     name: `Team ${index + 1}`,
     color: colors[index % colors.length],
+  };
+}
+
+export function createPlayer(index: number): PlayerConfig {
+  return {
+    id: `player-${index + 1}`,
+    name: `Player ${index + 1}`,
   };
 }
 
@@ -39,6 +52,7 @@ export const defaultSessionConfig: SessionConfig = {
   mode: "fellowship",
   playlist: [createPlaylistItem("quiz", 0)],
   teams: [],
+  players: [],
   showAudienceScores: true,
   soundEnabled: true,
   motion: "system",
@@ -63,7 +77,7 @@ export const builtInPresets: readonly SessionPreset[] = [
   },
   {
     id: "preset-sunday-school",
-    title: "Sunday School – No Timer",
+    title: "Sunday School – No Time Limit",
     description: "A calm study session with references after each answer.",
     builtIn: true,
     config: {

@@ -61,7 +61,7 @@ async function startStudyFixture(page: Page) {
   );
   await page.goto("/studio");
   await page.getByRole("button", { name: /Bible Study Review/i }).click();
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
   await expect(page).toHaveURL(/\/play\/session-[^/]+$/);
 }
 

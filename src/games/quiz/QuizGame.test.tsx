@@ -64,7 +64,7 @@ describe("KJV Bible Quiz", () => {
     render(<QuizGame onExit={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Custom" }));
-    const input = screen.getByRole("spinbutton", { name: /custom total/i });
+    const input = screen.getByRole("spinbutton", { name: /custom number of questions/i });
     fireEvent.change(input, { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: /start quiz/i }));
 

@@ -1,6 +1,11 @@
 import { createId, initialRoundState, timerForRound } from "./createSession";
-import { canAdvance, currentPreparedRound, currentRoundState } from "./selectors";
-import type { ActiveSession, PersistedRoundState } from "./types";
+import { activeCompetitors, canAdvance, currentPreparedRound, currentRoundState } from "./selectors";
+import type {
+  ActiveSession,
+  PersistedRoundState,
+  PlayerConfig,
+  TeamConfig,
+} from "./types";
 
 export type SessionAction =
   | { type: "QUIZ_SELECT"; choiceIndex: number; correct: boolean }
@@ -18,8 +23,15 @@ export type SessionAction =
   | { type: "RESUME_TIMER" }
   | { type: "PAUSE_TIMER" }
   | { type: "TOGGLE_SOUND" }
-  | { type: "SCORE"; teamId: string; delta: 1 | -1 }
-  | { type: "UNDO_SCORE" };
+  | { type: "SCORE"; competitorId: string; delta: 1 | -1 }
+  | { type: "UNDO_SCORE" }
+  | { type: "RESET_SCORES" }
+  | {
+      type: "CONFIGURE_SCORING";
+      mode: "individual" | "team";
+      players: PlayerConfig[];
+      teams: TeamConfig[];
+    };
 
 function updateCurrentRound(
   session: ActiveSession,
@@ -230,7 +242,9 @@ export function sessionReducer(
         config: { ...session.config, soundEnabled: !session.config.soundEnabled },
       };
     case "SCORE":
-      if (!session.config.teams.some((team) => team.id === action.teamId)) return session;
+      if (!activeCompetitors(session.config).some((competitor) => competitor.id === action.competitorId)) {
+        return session;
+      }
       return {
         ...session,
         updatedAt: new Date().toISOString(),
@@ -238,7 +252,7 @@ export function sessionReducer(
           ...session.scoreEvents,
           {
             id: createId("score"),
-            teamId: action.teamId,
+            competitorId: action.competitorId,
             delta: action.delta,
             roundId: round.id,
             createdAt: new Date().toISOString(),
@@ -246,11 +260,42 @@ export function sessionReducer(
         ],
       };
     case "UNDO_SCORE":
+      if (session.scoreEvents.length === 0) return session;
       return {
         ...session,
         updatedAt: new Date().toISOString(),
         scoreEvents: session.scoreEvents.slice(0, -1),
       };
+    case "RESET_SCORES":
+      if (session.scoreEvents.length === 0) return session;
+      return {
+        ...session,
+        updatedAt: new Date().toISOString(),
+        scoreEvents: [],
+      };
+    case "CONFIGURE_SCORING": {
+      const modeChanged = session.config.mode !== action.mode;
+      const teams = action.mode === "team" ? action.teams : [];
+      const players = action.mode === "individual" ? action.players : [];
+      const activeIds = new Set(
+        action.mode === "team"
+          ? teams.map((team) => team.id)
+          : players.map((player) => player.id),
+      );
+      return {
+        ...session,
+        updatedAt: new Date().toISOString(),
+        config: {
+          ...session.config,
+          mode: action.mode,
+          players,
+          teams,
+        },
+        scoreEvents: modeChanged
+          ? []
+          : session.scoreEvents.filter((event) => activeIds.has(event.competitorId)),
+      };
+    }
     default:
       return session;
   }

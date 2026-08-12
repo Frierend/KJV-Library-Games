@@ -4,7 +4,7 @@ const ACTIVE_SESSION_KEY = "kjventure.session.v1";
 
 async function startDefaultHostedQuiz(page: Page) {
   await page.goto("/studio");
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
   await expect(page).toHaveURL(/\/play\/session-[^/]+$/);
   await page.locator(".quiz-board.session-game-board").waitFor({ state: "visible" });
 }
@@ -12,17 +12,17 @@ async function startDefaultHostedQuiz(page: Page) {
 async function startMixedTeamSession(page: Page, showAudienceScores: boolean) {
   await page.goto("/studio");
   await page.getByRole("button", { name: /family game night/i }).click();
-  await page.getByLabel("KJV Bible Quiz rounds").fill("1");
-  await page.getByLabel("4 Pics 1 Word rounds").fill("1");
+  await page.getByLabel("KJV Bible Quiz number of questions").fill("1");
+  await page.getByLabel("4 Pics 1 Word number of puzzles").fill("1");
 
-  const scoreVisibility = page.getByLabel("Show scores on the gameplay stage");
+  const scoreVisibility = page.getByLabel("Show Scores During Gameplay");
   if (showAudienceScores) {
     await scoreVisibility.check();
   } else {
     await scoreVisibility.uncheck();
   }
 
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
   await expect(page).toHaveURL(/\/play\/session-[^/]+$/);
   await page.locator(".quiz-board.session-game-board").waitFor({ state: "visible" });
 }
@@ -47,7 +47,7 @@ test("leave dialog freezes and conditionally resumes the hosted timer with focus
   const timer = page.getByRole("timer");
   await expect(timer).toHaveAccessibleName(/^\d+ seconds remaining$/);
 
-  const opener = page.getByTitle("Back to KJVenture");
+  const opener = page.getByTitle("Back to Library");
   await opener.click();
   await expect(page.getByRole("alertdialog", { name: "Leave this session?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
@@ -80,7 +80,7 @@ test("leave dialog freezes and conditionally resumes the hosted timer with focus
 
 test("confirming Leave persists a paused session that remains recoverable", async ({ page }) => {
   await startDefaultHostedQuiz(page);
-  await page.getByTitle("Back to KJVenture").click();
+  await page.getByTitle("Back to Library").click();
   await page.getByRole("button", { name: "Return to Library" }).click();
 
   await expect(page.getByRole("heading", { name: "Continue Last Session" })).toBeVisible();
@@ -98,11 +98,11 @@ for (const showAudienceScores of [true, false]) {
   test(`host scoring, mixed games, and restoration work with audience scores ${showAudienceScores ? "shown" : "hidden"}`, async ({ page }) => {
     await startMixedTeamSession(page, showAudienceScores);
     const stage = page.locator(".session-game-board");
-    const audienceScores = stage.getByRole("region", { name: "Audience team scores" });
-    const host = page.getByRole("navigation", { name: "Host controls" });
+    const audienceScores = stage.getByRole("region", { name: "Audience Standings" });
+    const host = page.getByRole("navigation", { name: "Host Controls" });
 
     await expect(audienceScores).toHaveCount(showAudienceScores ? 1 : 0);
-    await expect(host.getByRole("region", { name: "Host score controls" })).toBeVisible();
+    await expect(host.getByRole("region", { name: "Host Team Score Controls" })).toBeVisible();
 
     await host.getByRole("button", { name: "Add one point to Team 1" }).click();
     await expect(host.getByLabel("Team 1: 1 points")).toBeVisible();
@@ -121,15 +121,15 @@ for (const showAudienceScores of [true, false]) {
     await host.getByRole("button", { name: "Next" }).click();
     await expect(page.locator(".four-pics-board.session-game-board")).toBeVisible();
     await expect(host.getByLabel("Team 1: 1 points")).toBeVisible();
-    await expect(page.locator(".session-game-board").getByRole("region", { name: "Audience team scores" }))
+    await expect(page.locator(".session-game-board").getByRole("region", { name: "Audience Standings" }))
       .toHaveCount(showAudienceScores ? 1 : 0);
 
     await page.reload();
     const restoredStage = page.locator(".four-pics-board.session-game-board");
-    const restoredHost = page.getByRole("navigation", { name: "Host controls" });
+    const restoredHost = page.getByRole("navigation", { name: "Host Controls" });
     await expect(restoredStage).toBeVisible();
     await expect(restoredHost.getByLabel("Team 1: 1 points")).toBeVisible();
-    await expect(restoredStage.getByRole("region", { name: "Audience team scores" }))
+    await expect(restoredStage.getByRole("region", { name: "Audience Standings" }))
       .toHaveCount(showAudienceScores ? 1 : 0);
 
     const letter = restoredStage.locator(".letter-bank button").first();

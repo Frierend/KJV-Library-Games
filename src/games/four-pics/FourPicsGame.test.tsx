@@ -265,7 +265,7 @@ describe("4 Pics 1 Word", () => {
 
   it("starts a 30-round game", () => {
     render(<FourPicsGame onExit={vi.fn()} />);
-    const rounds = screen.getByRole("group", { name: "Rounds" });
+    const rounds = screen.getByRole("group", { name: "Number of Puzzles" });
     fireEvent.click(within(rounds).getByRole("button", { name: "30" }));
     fireEvent.click(screen.getByRole("button", { name: /start game/i }));
 
@@ -278,7 +278,7 @@ describe("4 Pics 1 Word", () => {
       render(<FourPicsGame onExit={vi.fn()} />);
       fireEvent.click(screen.getByRole("button", { name: "Custom" }));
       fireEvent.change(
-        screen.getByRole("spinbutton", { name: /custom rounds/i }),
+        screen.getByRole("spinbutton", { name: /custom number of puzzles/i }),
         { target: { value } },
       );
 

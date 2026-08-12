@@ -5,6 +5,7 @@ import { playTone } from "../../utils";
 import { Button } from "./Button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { IconButton } from "./IconButton";
+import { InfoTip } from "./InfoTip";
 import { LoadingState } from "./LoadingState";
 
 describe("KJVenture UI foundations", () => {
@@ -85,5 +86,35 @@ describe("KJVenture UI foundations", () => {
     expect(() => playTone(false, 440, 0.1)).not.toThrow();
     render(<LoadingState label="Preparing a game" />);
     expect(screen.getByRole("status")).toHaveTextContent("Preparing a game");
+  });
+
+  it("opens information text from hover, focus, and touch, then dismisses it accessibly", () => {
+    render(
+      <InfoTip label="Time Limit">
+        This controls how long each question can remain active.
+      </InfoTip>,
+    );
+
+    const button = screen.getByRole("button", { name: "More information about Time Limit" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerEnter(button, { pointerType: "mouse" });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("how long each question");
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(button).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.focus(button);
+    expect(screen.getByRole("tooltip")).toBeVisible();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    button.blur();
+
+    fireEvent.click(button);
+    expect(screen.getByRole("tooltip")).toBeVisible();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 });

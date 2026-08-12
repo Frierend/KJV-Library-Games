@@ -95,7 +95,7 @@ export function GameTopBar({
           event.currentTarget.focus();
           onExit();
         }}
-        title="Back to KJVenture"
+        title="Back to Library"
       >
         <BrandMark />
         <span>
@@ -106,27 +106,27 @@ export function GameTopBar({
       <div
         aria-label={
           timeLeft === null
-            ? "No timer"
+            ? "No Time Limit"
             : `${formatTimerAnnouncement(timeLeft)}${paused ? ", paused" : ""}`
         }
         className={`timer timer--${timerState}`}
         role="timer"
       >
-        {timeLeft === null ? "No timer" : formatTimer(timeLeft)}
+        {timeLeft === null ? "No Time Limit" : formatTimer(timeLeft)}
       </div>
       <div className="play-header__actions">
         <span className="progress-label">{progress}</span>
         <IconButton
           aria-pressed={sound}
           icon={sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
-          label={sound ? "Turn sound off" : "Turn sound on"}
+          label={sound ? "Disable Sound Effects" : "Enable Sound Effects"}
           onClick={onToggleSound}
         />
         <IconButton
           aria-pressed={fullscreen}
           disabled={!fullscreenAvailable && !fullscreen}
           icon={fullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-          label={fullscreen ? "Exit full screen" : "Enter full screen"}
+          label={fullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
           onClick={() => void handleFullscreenToggle()}
           ref={fullscreenButtonRef}
         />

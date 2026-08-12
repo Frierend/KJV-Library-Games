@@ -88,24 +88,24 @@ test("fullscreen failures are announced, retryable, and do not create page error
   await openQuickGame(page, "quiz", "explore");
   await startQuickGame(page, "quiz");
 
-  const fullscreen = page.getByRole("button", { name: "Enter full screen" });
+  const fullscreen = page.getByRole("button", { name: "Enter Fullscreen" });
   await fullscreen.click();
   await expect(page.locator(".fullscreen-feedback")).toHaveText(/Fullscreen could not be entered/);
   await expect(fullscreen).toBeFocused();
   await expect(fullscreen).toHaveAttribute("aria-pressed", "false");
 
   await fullscreen.click();
-  await expect(page.getByRole("button", { name: "Exit full screen" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Exit Fullscreen" })).toBeVisible();
   await expect(page.locator(".fullscreen-feedback")).toHaveCount(0);
 
-  const exit = page.getByRole("button", { name: "Exit full screen" });
+  const exit = page.getByRole("button", { name: "Exit Fullscreen" });
   await exit.click();
   await expect(page.locator(".fullscreen-feedback")).toHaveText(/Fullscreen could not be exited/);
   await expect(exit).toBeFocused();
   await expect(exit).toHaveAttribute("aria-pressed", "true");
 
   await exit.click();
-  await expect(page.getByRole("button", { name: "Enter full screen" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Enter Fullscreen" })).toBeVisible();
   await expect(page.locator(".fullscreen-feedback")).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);
@@ -125,11 +125,11 @@ test("unsupported fullscreen is disclosed and Session Studio does not offer a mi
   await page.goto("/games/quiz");
   await startQuickGame(page, "quiz");
   await expect(page.locator(".fullscreen-feedback")).toHaveText("Fullscreen is unavailable in this browser.");
-  await expect(page.getByRole("button", { name: "Enter full screen" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Enter Fullscreen" })).toBeDisabled();
 
   await page.goto("/studio");
   await expect(page.getByText("Fullscreen is unavailable in this browser.")).toBeVisible();
-  await expect(page.getByLabel("Request fullscreen when starting")).toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: "Start Session in Fullscreen" })).toBeDisabled();
 });
 
 test("automatic fullscreen rejection still starts a hosted session and offers a manual retry", async ({ page }) => {
@@ -137,14 +137,14 @@ test("automatic fullscreen rejection still starts a hosted session and offers a 
     Element.prototype.requestFullscreen = () => Promise.reject(new Error("permission denied"));
   });
   await page.goto("/studio");
-  const preference = page.getByLabel("Request fullscreen when starting");
+  const preference = page.getByRole("checkbox", { name: "Start Session in Fullscreen" });
   await preference.check();
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
 
   await expect(page.locator(".session-player")).toBeVisible();
   await expect(page.locator(".fullscreen-feedback")).toHaveText(/Fullscreen could not be entered/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  const retry = page.getByRole("button", { name: "Enter full screen" });
+  const retry = page.getByRole("button", { name: "Enter Fullscreen" });
   await expect(retry).toBeEnabled();
   await retry.click();
   await expect(page.locator(".fullscreen-feedback")).toHaveText(/Fullscreen could not be entered/);

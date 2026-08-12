@@ -12,6 +12,14 @@ const TEAM_NAMES = [
 ] as const;
 
 const TEAM_SCORES = [2, 1, -1, 3, 0, -2] as const;
+const RANKED_TEAM_NAMES = [
+  "Jerusalem Bible Scholars",
+  "A",
+  "Bethlehem Fellowship",
+  "Grace",
+  "Z",
+  "New Jerusalem Champions",
+] as const;
 
 const VIEWPORTS = [
   { width: 1920, height: 1080, label: "1920x1080" },
@@ -25,10 +33,10 @@ async function startSixTeamSession(page: Page, showAudienceScores: boolean) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/studio");
   await page.getByRole("button", { name: /family game night/i }).click();
-  await page.getByLabel("KJV Bible Quiz rounds").fill("1");
-  await page.getByLabel("4 Pics 1 Word rounds").fill("1");
-  await page.getByLabel("KJV Bible Quiz timer seconds").fill("300");
-  await page.getByLabel("4 Pics 1 Word timer seconds").fill("300");
+  await page.getByLabel("KJV Bible Quiz number of questions").fill("1");
+  await page.getByLabel("4 Pics 1 Word number of puzzles").fill("1");
+  await page.getByLabel("KJV Bible Quiz time limit").fill("300");
+  await page.getByLabel("4 Pics 1 Word time limit").fill("300");
 
   const addTeam = page.getByRole("button", { name: "Add Team" });
   for (let index = 2; index < TEAM_NAMES.length; index += 1) {
@@ -38,18 +46,18 @@ async function startSixTeamSession(page: Page, showAudienceScores: boolean) {
     await page.getByLabel(`Team ${index + 1} name`).fill(TEAM_NAMES[index]);
   }
 
-  const scoreVisibility = page.getByLabel("Show scores on the gameplay stage");
+  const scoreVisibility = page.getByLabel("Show Scores During Gameplay");
   if (showAudienceScores) {
     await scoreVisibility.check();
   } else {
     await scoreVisibility.uncheck();
   }
 
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
   await expect(page).toHaveURL(/\/play\/session-[^/]+$/);
   await expect(page.locator(".quiz-board.session-game-board")).toBeVisible();
 
-  const host = page.getByRole("navigation", { name: "Host controls" });
+  const host = page.getByRole("navigation", { name: "Host Controls" });
   for (let index = 0; index < TEAM_NAMES.length; index += 1) {
     const score = TEAM_SCORES[index];
     const buttonName = score >= 0
@@ -88,8 +96,8 @@ async function assertResponsiveScoreLayout(
         first.bottom > second.top + 1;
 
       const stage = document.querySelector<HTMLElement>(`.${gameId === "quiz" ? "quiz-board" : "four-pics-board"}.session-game-board`);
-      const host = document.querySelector<HTMLElement>('[aria-label="Host score controls"]');
-      const audience = stage?.querySelector<HTMLElement>('[aria-label="Audience team scores"]') ?? null;
+      const host = document.querySelector<HTMLElement>('[aria-label="Host Team Score Controls"]');
+      const audience = stage?.querySelector<HTMLElement>('[aria-label="Audience Standings"]') ?? null;
       const undo = host?.querySelector<HTMLElement>('[aria-label="Undo last score change"]') ?? null;
       const cards = host ? Array.from(host.querySelectorAll<HTMLElement>(".score-team")) : [];
       const names = cards.map((card) => card.querySelector<HTMLElement>(".score-team__name"));
@@ -168,7 +176,6 @@ async function assertResponsiveScoreLayout(
       showScores: showAudienceScores,
     },
   );
-
   expect(report.cardCount).toBe(6);
   expect(report.hostNames).toEqual([...TEAM_NAMES]);
   expect(report.hostScores).toEqual([...TEAM_SCORES]);
@@ -181,7 +188,7 @@ async function assertResponsiveScoreLayout(
     expect(name?.fontSize).toBeGreaterThanOrEqual(12);
   }
   expect(report.audienceCount).toBe(showAudienceScores ? 1 : 0);
-  expect(report.audienceNames).toEqual(showAudienceScores ? [...TEAM_NAMES] : []);
+  expect(report.audienceNames).toEqual(showAudienceScores ? [...RANKED_TEAM_NAMES] : []);
   for (const name of report.audienceNameLayout) {
     expect(name.clipped).toBe(false);
     expect(name.textOverflow).not.toBe("ellipsis");
@@ -195,7 +202,7 @@ async function assertResponsiveScoreLayout(
   expect(report.stageInsideViewport).toBe(true);
   expect(report.stageOverlapsHostScores).toBe(false);
   expect(report.horizontalOverflow).toBeLessThanOrEqual(1);
-  expect(report.buttons).toHaveLength(13);
+  expect(report.buttons).toHaveLength(15);
   for (const button of report.buttons) {
     expect(button.width, button.label ?? "score button width").toBeGreaterThanOrEqual(44);
     expect(button.height, button.label ?? "score button height").toBeGreaterThanOrEqual(44);
@@ -240,7 +247,7 @@ for (const showAudienceScores of [true, false]) {
     await page.evaluate(() => scrollTo(0, 0));
     await assertResponsiveScoreLayout(page, "quiz", showAudienceScores);
 
-    const host = page.getByRole("navigation", { name: "Host controls" });
+    const host = page.getByRole("navigation", { name: "Host Controls" });
     await host.getByRole("button", { name: "Reveal Answer" }).click();
     await host.getByRole("button", { name: "Next" }).click();
     await expect(page.locator(".four-pics-board.session-game-board")).toBeVisible();

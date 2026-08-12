@@ -83,7 +83,7 @@ describe("GameTopBar fullscreen feedback", () => {
     });
     renderTopBar();
 
-    const button = screen.getByRole("button", { name: "Enter full screen" });
+    const button = screen.getByRole("button", { name: "Enter Fullscreen" });
     fireEvent.click(button);
 
     expect(await screen.findByRole("status")).toHaveTextContent(
@@ -107,9 +107,9 @@ describe("GameTopBar fullscreen feedback", () => {
     });
     renderTopBar();
 
-    const button = screen.getByRole("button", { name: "Enter full screen" });
+    const button = screen.getByRole("button", { name: "Enter Fullscreen" });
     fireEvent.click(button);
-    await waitFor(() => expect(button).toHaveAccessibleName("Exit full screen"));
+    await waitFor(() => expect(button).toHaveAccessibleName("Exit Fullscreen"));
     fireEvent.click(button);
 
     expect(await screen.findByRole("status")).toHaveTextContent(
@@ -119,7 +119,7 @@ describe("GameTopBar fullscreen feedback", () => {
     expect(button).toHaveFocus();
 
     fireEvent.click(button);
-    await waitFor(() => expect(button).toHaveAccessibleName("Enter full screen"));
+    await waitFor(() => expect(button).toHaveAccessibleName("Enter Fullscreen"));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
@@ -131,6 +131,6 @@ describe("GameTopBar fullscreen feedback", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Fullscreen is unavailable in this browser.",
     );
-    expect(screen.getByRole("button", { name: "Enter full screen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Enter Fullscreen" })).toBeDisabled();
   });
 });

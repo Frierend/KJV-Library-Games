@@ -10,8 +10,11 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "../app/AppShell";
+import { ScoringRosterEditor } from "../components/gameplay/ScoringRosterEditor";
 import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { IconButton } from "../components/ui/IconButton";
+import { InfoTip } from "../components/ui/InfoTip";
 import { StatusNotice } from "../components/ui/StatusNotice";
 import { gameRegistry } from "../games/registry";
 import { createId } from "../session/createSession";
@@ -20,15 +23,21 @@ import {
   builtInPresets,
   cloneSessionConfig,
   createPlaylistItem,
+  createPlayer,
   createTeam,
   defaultSessionConfig,
 } from "../session/presets";
+import {
+  normalizePlayers,
+  normalizeTeams,
+  validatePlayers,
+  validateTeams,
+} from "../session/scoring";
 import type {
   GamePlaylistItem,
   SessionConfig,
   SessionMode,
   SessionPreset,
-  TeamConfig,
 } from "../session/types";
 import {
   isFullscreenSupported,
@@ -43,8 +52,37 @@ function newPlaylistItem(gameId: "quiz" | "four-pics", index: number) {
   };
 }
 
-function newTeam(index: number): TeamConfig {
-  return { ...createTeam(index), id: createId("team") };
+function contentNoun(gameId: GamePlaylistItem["gameId"]) {
+  return gameId === "quiz" ? "question" : "puzzle";
+}
+
+function contentCountLabel(gameId: GamePlaylistItem["gameId"], count: number) {
+  const noun = contentNoun(gameId);
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+const modeOptions: readonly {
+  mode: SessionMode;
+  label: string;
+  helper: string;
+}[] = [
+  { mode: "fellowship", label: "Fellowship Mode", helper: "Classic host-led play without scores." },
+  { mode: "individual", label: "Individual Play", helper: "Everyone competes separately." },
+  { mode: "team", label: "Team Play", helper: "Players compete in groups." },
+  { mode: "study", label: "Study Mode", helper: "Untimed, reference-focused play." },
+];
+
+function normalizedConfig(config: SessionConfig): SessionConfig {
+  return {
+    ...config,
+    players: normalizePlayers(config.players),
+    teams: normalizeTeams(config.teams),
+  };
+}
+
+interface PendingModeChange {
+  mode: SessionMode;
+  preset?: SessionPreset;
 }
 
 export function SessionStudioScreen() {
@@ -58,26 +96,31 @@ export function SessionStudioScreen() {
   );
   const [presetName, setPresetName] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
+  const [pendingModeChange, setPendingModeChange] = useState<PendingModeChange | null>(null);
   const presets = [...builtInPresets, ...savedPresets];
   const fullscreenSupported = isFullscreenSupported();
 
-  const teamError = useMemo(() => {
-    if (config.mode !== "team") return "";
-    if (config.teams.length < 2 || config.teams.length > 6) {
-      return "Team mode requires 2 to 6 teams.";
-    }
-    const names = config.teams.map((team) => team.name.trim().toLowerCase());
-    if (names.some((name) => !name)) return "Every team needs a name.";
-    if (new Set(names).size !== names.length) return "Team names must be unique.";
+  const scoringError = useMemo(() => {
+    if (config.mode === "team") return validateTeams(config.teams).firstError;
+    if (config.mode === "individual") return validatePlayers(config.players).firstError;
     return "";
-  }, [config.mode, config.teams]);
+  }, [config.mode, config.players, config.teams]);
 
   const sessionError =
     config.playlist.length === 0
       ? "Add at least one game to the playlist."
-      : teamError;
+      : scoringError;
 
   function applyPreset(preset: SessionPreset) {
+    const currentCount = config.mode === "team"
+      ? config.teams.length
+      : config.mode === "individual"
+        ? config.players.length
+        : 0;
+    if (preset.config.mode !== config.mode && currentCount > 0) {
+      setPendingModeChange({ mode: preset.config.mode, preset });
+      return;
+    }
     setConfig(cloneSessionConfig(preset.config));
     setPresetName(preset.title);
     setSavedMessage("");
@@ -102,19 +145,40 @@ export function SessionStudioScreen() {
     });
   }
 
-  function setMode(mode: SessionMode) {
+  function applyMode(mode: SessionMode) {
     setConfig((current) => ({
       ...current,
       mode,
       teams:
-        mode === "team" && current.teams.length < 2
-          ? [newTeam(0), newTeam(1)]
-          : current.teams,
+        mode === "team"
+          ? [
+              { ...createTeam(0), id: createId("team") },
+              { ...createTeam(1), id: createId("team") },
+            ]
+          : [],
+      players:
+        mode === "individual"
+          ? [{ ...createPlayer(0), id: createId("player") }]
+          : [],
       playlist:
         mode === "study"
           ? current.playlist.map((item) => ({ ...item, timerSeconds: null }))
           : current.playlist,
     }));
+  }
+
+  function requestMode(mode: SessionMode) {
+    if (mode === config.mode) return;
+    const currentCount = config.mode === "team"
+      ? config.teams.length
+      : config.mode === "individual"
+        ? config.players.length
+        : 0;
+    if (currentCount > 0) {
+      setPendingModeChange({ mode });
+      return;
+    }
+    applyMode(mode);
   }
 
   async function startSession() {
@@ -124,7 +188,7 @@ export function SessionStudioScreen() {
       const outcome = await requestFullscreen();
       if (outcome.status !== "success") fullscreenFailure = outcome;
     }
-    const session = createSession(cloneSessionConfig(config));
+    const session = createSession(cloneSessionConfig(normalizedConfig(config)));
     navigate(`/play/${session.id}`, {
       state: fullscreenFailure ? { fullscreenFailure } : undefined,
     });
@@ -139,7 +203,7 @@ export function SessionStudioScreen() {
           <p>Build a polished local game-night playlist, then preview it before starting.</p>
         </div>
         <Button leadingIcon={<ArrowLeft size={18} />} onClick={() => navigate("/")} variant="ghost">
-          Library
+          Back to Library
         </Button>
       </section>
 
@@ -158,24 +222,23 @@ export function SessionStudioScreen() {
               />
             </label>
             <fieldset className="studio-fieldset">
-              <legend>Play mode</legend>
+              <legend>
+                Play Format
+                <InfoTip label="Play Format">
+                  Choose how the session is hosted. Fellowship Mode is host-led without scores, while Study Mode is untimed and reference-focused.
+                </InfoTip>
+              </legend>
               <div className="mode-grid">
-                {(["fellowship", "team", "study"] as const).map((mode) => (
+                {modeOptions.map((option) => (
                   <button
-                    aria-pressed={config.mode === mode}
-                    className={`mode-card ${config.mode === mode ? "is-selected" : ""}`}
-                    key={mode}
-                    onClick={() => setMode(mode)}
+                    aria-pressed={config.mode === option.mode}
+                    className={`mode-card ${config.mode === option.mode ? "is-selected" : ""}`}
+                    key={option.mode}
+                    onClick={() => requestMode(option.mode)}
                     type="button"
                   >
-                    <strong>{mode[0].toUpperCase() + mode.slice(1)}</strong>
-                    <span>
-                      {mode === "team"
-                        ? "Manual team scores"
-                        : mode === "study"
-                          ? "Untimed, reference-focused"
-                          : "Classic host-led play"}
-                    </span>
+                    <strong>{option.label}</strong>
+                    <span>{option.helper}</span>
                   </button>
                 ))}
               </div>
@@ -214,10 +277,13 @@ export function SessionStudioScreen() {
                 />
               </label>
               <Button
-                disabled={!presetName.trim()}
+                disabled={!presetName.trim() || Boolean(sessionError)}
                 leadingIcon={<Save size={17} />}
                 onClick={() => {
-                  savePreset(presetName.trim(), cloneSessionConfig(config));
+                  savePreset(
+                    presetName.trim(),
+                    cloneSessionConfig(normalizedConfig(config)),
+                  );
                   setSavedMessage("Preset saved on this device.");
                 }}
                 variant="secondary"
@@ -263,7 +329,7 @@ export function SessionStudioScreen() {
                   <article className="playlist-item" key={item.id}>
                     <div className="playlist-item__header">
                       <span className="playlist-item__number">{index + 1}</span>
-                      <div><strong>{game.title}</strong><small>{game.contentCount} records available</small></div>
+                      <div><strong>{game.title}</strong><small>{contentCountLabel(item.gameId, game.contentCount)} available</small></div>
                       <div className="playlist-item__actions">
                         <IconButton disabled={index === 0} icon={<ArrowUp size={17} />} label={`Move ${game.title} earlier`} onClick={() => movePlaylistItem(index, -1)} />
                         <IconButton disabled={index === config.playlist.length - 1} icon={<ArrowDown size={17} />} label={`Move ${game.title} later`} onClick={() => movePlaylistItem(index, 1)} />
@@ -271,13 +337,13 @@ export function SessionStudioScreen() {
                       </div>
                     </div>
                     <div className="playlist-settings">
-                      <label className="studio-field"><span>Content pack</span><select disabled value="kjventure-core"><option>KJVenture Core Library</option></select></label>
-                      <label className="studio-field"><span>Rounds</span><input aria-label={`${game.title} rounds`} max={maxRounds} min={1} onChange={(event) => updatePlaylistItem(item.id, { roundCount: Math.max(1, Math.min(maxRounds, Number(event.target.value) || 1)) })} type="number" value={item.roundCount} /></label>
-                      <label className="studio-field"><span>Order</span><select onChange={(event) => updatePlaylistItem(item.id, { order: event.target.value as GamePlaylistItem["order"] })} value={item.order}><option value="random">Random</option><option value="source">Source order</option></select></label>
-                      <label className="studio-field"><span>Timer seconds</span><input aria-label={`${game.title} timer seconds`} disabled={item.timerSeconds === null} max={300} min={5} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: Math.max(5, Math.min(300, Number(event.target.value) || 20)) })} type="number" value={item.timerSeconds ?? 20} /></label>
-                      <label className="studio-check"><input checked={item.timerSeconds === null} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: event.target.checked ? null : 20 })} type="checkbox" /><span>No timer</span></label>
-                      <label className="studio-field"><span>At time’s up</span><select disabled={item.timerSeconds === null} onChange={(event) => updatePlaylistItem(item.id, { expiryBehavior: event.target.value as GamePlaylistItem["expiryBehavior"] })} value={item.expiryBehavior}><option value="require-reveal">Require reveal</option><option value="allow-skip">Allow Next</option><option value="auto-reveal">Auto-reveal</option></select></label>
-                      <label className="studio-field"><span>Difficulty</span><select disabled><option>Not yet tagged</option></select></label>
+                      <div className="studio-field"><span><label htmlFor={`${item.id}-content-pack`}>Content Pack</label><InfoTip label="Content Pack">The built-in KJVenture library supplies the questions and puzzles for this session.</InfoTip></span><select disabled id={`${item.id}-content-pack`} value="kjventure-core"><option>KJVenture Core Library</option></select></div>
+                      <label className="studio-field"><span>Number of {item.gameId === "quiz" ? "Questions" : "Puzzles"}</span><input aria-label={`${game.title} number of ${item.gameId === "quiz" ? "questions" : "puzzles"}`} max={maxRounds} min={1} onChange={(event) => updatePlaylistItem(item.id, { roundCount: Math.max(1, Math.min(maxRounds, Number(event.target.value) || 1)) })} type="number" value={item.roundCount} /></label>
+                      <div className="studio-field"><span><label htmlFor={`${item.id}-order`}>{item.gameId === "quiz" ? "Question Order" : "Puzzle Order"}</label><InfoTip label={item.gameId === "quiz" ? "Question Order" : "Puzzle Order"}>Random mixes the available {item.gameId === "quiz" ? "questions" : "puzzles"}; Source order follows the library sequence.</InfoTip></span><select id={`${item.id}-order`} onChange={(event) => updatePlaylistItem(item.id, { order: event.target.value as GamePlaylistItem["order"] })} value={item.order}><option value="random">Random</option><option value="source">Source order</option></select></div>
+                      <label className="studio-field"><span>Time Limit</span><input aria-label={`${game.title} time limit`} disabled={item.timerSeconds === null} max={300} min={5} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: Math.max(5, Math.min(300, Number(event.target.value) || 20)) })} type="number" value={item.timerSeconds ?? 20} /></label>
+                      <label className="studio-check"><input checked={item.timerSeconds === null} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: event.target.checked ? null : 20 })} type="checkbox" /><span>No Time Limit</span></label>
+                      <div className="studio-field"><span><label htmlFor={`${item.id}-expiry`}>When Time Expires</label><InfoTip label="When Time Expires">Require reveal keeps the current question or puzzle in place. Allow Skipping bypasses it, while Auto-reveal shows the answer automatically.</InfoTip></span><select disabled={item.timerSeconds === null} id={`${item.id}-expiry`} onChange={(event) => updatePlaylistItem(item.id, { expiryBehavior: event.target.value as GamePlaylistItem["expiryBehavior"] })} value={item.expiryBehavior}><option value="require-reveal">Require reveal</option><option value="allow-skip">Allow Skipping</option><option value="auto-reveal">Auto-reveal</option></select></div>
+                      <div className="studio-field"><span><label htmlFor={`${item.id}-difficulty`}>Difficulty</label><InfoTip label="Difficulty">Difficulty filters are unavailable because the current library has no difficulty metadata yet.</InfoTip></span><select disabled id={`${item.id}-difficulty`}><option>Difficulty not assigned</option></select></div>
                     </div>
                   </article>
                 );
@@ -286,45 +352,36 @@ export function SessionStudioScreen() {
             </div>
           </section>
 
-          {config.mode === "team" && (
+          {(config.mode === "team" || config.mode === "individual") && (
             <section className="studio-section">
-              <div className="studio-section__heading">
-                <div><span className="eyebrow">Optional scoring</span><h2>Teams</h2></div>
-                <Button
-                  disabled={config.teams.length >= 6}
-                  leadingIcon={<Plus size={16} />}
-                  onClick={() => setConfig((current) => ({ ...current, teams: [...current.teams, newTeam(current.teams.length)] }))}
-                  variant="ghost"
-                >Add Team</Button>
-              </div>
-              <div className="team-editor">
-                {config.teams.map((team, index) => (
-                  <div className={`team-field team-field--${team.color}`} key={team.id}>
-                    <label className="studio-field"><span>Team {index + 1}</span><input aria-label={`Team ${index + 1} name`} maxLength={24} onChange={(event) => setConfig((current) => ({ ...current, teams: current.teams.map((candidate) => candidate.id === team.id ? { ...candidate, name: event.target.value } : candidate) }))} value={team.name} /></label>
-                    <IconButton disabled={config.teams.length <= 2} icon={<Trash2 size={17} />} label={`Remove ${team.name || `team ${index + 1}`}`} onClick={() => setConfig((current) => ({ ...current, teams: current.teams.filter((candidate) => candidate.id !== team.id) }))} />
-                  </div>
-                ))}
-              </div>
-              {teamError && <p className="validation-message" role="alert">{teamError}</p>}
-              <label className="studio-check"><input checked={config.showAudienceScores} onChange={(event) => setConfig((current) => ({ ...current, showAudienceScores: event.target.checked }))} type="checkbox" /><span>Show scores on the gameplay stage</span></label>
+              <ScoringRosterEditor
+                mode={config.mode}
+                onPlayersChange={(players) => setConfig((current) => ({ ...current, players }))}
+                onTeamsChange={(teams) => setConfig((current) => ({ ...current, teams }))}
+                players={config.players}
+                teams={config.teams}
+              />
+              <label className="studio-check"><input checked={config.showAudienceScores} onChange={(event) => setConfig((current) => ({ ...current, showAudienceScores: event.target.checked }))} type="checkbox" /><span>Show Scores During Gameplay</span></label>
             </section>
           )}
 
           <section className="studio-section">
-            <div className="studio-section__heading"><div><span className="eyebrow">Step 3</span><h2>Presentation preferences</h2></div></div>
+            <div className="studio-section__heading"><div><span className="eyebrow">Step 3</span><h2>Presentation Settings</h2></div></div>
             <div className="preference-grid">
-              <label className="studio-field"><span>References</span><select onChange={(event) => setConfig((current) => ({ ...current, referenceDisplay: event.target.value as SessionConfig["referenceDisplay"] }))} value={config.referenceDisplay}><option value="on-resolution">After resolution</option><option value="always">Always visible</option><option value="hidden">Hidden</option></select></label>
-              <label className="studio-field"><span>Motion</span><select onChange={(event) => setConfig((current) => ({ ...current, motion: event.target.value as SessionConfig["motion"] }))} value={config.motion}><option value="system">Follow device</option><option value="full">Full motion</option><option value="reduced">Reduced motion</option></select></label>
-              <label className="studio-check"><input checked={config.soundEnabled} onChange={(event) => setConfig((current) => ({ ...current, soundEnabled: event.target.checked }))} type="checkbox" /><span>Sound cues</span></label>
-              <label className={`studio-check ${!fullscreenSupported ? "studio-check--disabled" : ""}`}>
+              <div className="studio-field"><span><label htmlFor="reference-display">Bible Reference Display</label><InfoTip label="Bible Reference Display">Choose when the Bible reference appears during play; this setting does not change the answer or scoring.</InfoTip></span><select id="reference-display" onChange={(event) => setConfig((current) => ({ ...current, referenceDisplay: event.target.value as SessionConfig["referenceDisplay"] }))} value={config.referenceDisplay}><option value="on-resolution">After Answer Reveal</option><option value="always">Always Show</option><option value="hidden">Hidden</option></select></div>
+              <div className="studio-field"><span><label htmlFor="animation-level">Animation Level</label><InfoTip label="Animation Level">Reduced Motion minimizes animation, while Follow Device Setting respects the device accessibility preference.</InfoTip></span><select id="animation-level" onChange={(event) => setConfig((current) => ({ ...current, motion: event.target.value as SessionConfig["motion"] }))} value={config.motion}><option value="system">Follow Device Setting</option><option value="full">Full Motion</option><option value="reduced">Reduced Motion</option></select></div>
+              <label className="studio-check"><input checked={config.soundEnabled} onChange={(event) => setConfig((current) => ({ ...current, soundEnabled: event.target.checked }))} type="checkbox" /><span>Enable Sound Effects</span></label>
+              <div className={`studio-check ${!fullscreenSupported ? "studio-check--disabled" : ""}`}>
                 <input
                   checked={config.fullscreenAtStart}
                   disabled={!fullscreenSupported}
+                  id="fullscreen-at-start"
                   onChange={(event) => setConfig((current) => ({ ...current, fullscreenAtStart: event.target.checked }))}
                   type="checkbox"
                 />
-                <span>Request fullscreen when starting</span>
-              </label>
+                <label htmlFor="fullscreen-at-start">Start Session in Fullscreen</label>
+                <InfoTip label="Start Session in Fullscreen">Requests browser fullscreen when the session starts; the browser may require a user gesture or deny the request.</InfoTip>
+              </div>
             </div>
             {!fullscreenSupported && (
               <div className="studio-fullscreen-notice">
@@ -336,15 +393,15 @@ export function SessionStudioScreen() {
           </section>
         </div>
 
-        <aside className="studio-preview" aria-label="Live session preview">
+        <aside className="studio-preview" aria-label="Session Preview">
           <div className="studio-preview__frame">
-            <div className="studio-preview__top"><span>KJVenture</span><span>{config.playlist.length} game{config.playlist.length === 1 ? "" : "s"}</span></div>
+            <div className="studio-preview__top"><span>KJVenture</span><span>{config.playlist.length} {config.playlist.length === 1 ? "Game" : "Games"}</span></div>
             <div className="studio-preview__body">
               <Eye aria-hidden="true" />
-              <span className="eyebrow">Live preview</span>
+              <span className="eyebrow">Session Preview</span>
               <h2>{config.title || "Untitled Session"}</h2>
-              <p>{config.mode[0].toUpperCase() + config.mode.slice(1)} mode</p>
-              <ol>{config.playlist.map((item) => <li key={item.id}>{gameRegistry[item.gameId].title}<span>{item.roundCount} rounds · {item.timerSeconds === null ? "No timer" : `${item.timerSeconds}s`}</span></li>)}</ol>
+              <p>{modeOptions.find((option) => option.mode === config.mode)?.label}</p>
+              <ol>{config.playlist.map((item) => <li key={item.id}>{gameRegistry[item.gameId].title}<span>{contentCountLabel(item.gameId, item.roundCount)} · {item.timerSeconds === null ? "No Time Limit" : `${item.timerSeconds}-second time limit`}</span></li>)}</ol>
             </div>
           </div>
           {sessionError && <p className="validation-message" role="alert">{sessionError}</p>}
@@ -354,6 +411,33 @@ export function SessionStudioScreen() {
           <small>All settings and content stay on this device.</small>
         </aside>
       </div>
+
+      <ConfirmDialog
+        confirmLabel={`Switch to ${modeOptions.find((option) => option.mode === pendingModeChange?.mode)?.label ?? "selected mode"}`}
+        description={
+          config.mode === "individual"
+            ? `This clears ${config.players.length} player ${config.players.length === 1 ? "name" : "names"}.`
+            : config.mode === "team"
+              ? `This clears ${config.teams.length} team ${config.teams.length === 1 ? "name" : "names"}.`
+              : "The selected mode uses a different scoring setup."
+        }
+        destructive
+        onCancel={() => setPendingModeChange(null)}
+        onConfirm={() => {
+          const pending = pendingModeChange;
+          setPendingModeChange(null);
+          if (!pending) return;
+          if (pending.preset) {
+            setConfig(cloneSessionConfig(pending.preset.config));
+            setPresetName(pending.preset.title);
+            setSavedMessage("");
+          } else {
+            applyMode(pending.mode);
+          }
+        }}
+        open={Boolean(pendingModeChange)}
+        title={`Change to ${modeOptions.find((option) => option.mode === pendingModeChange?.mode)?.label ?? "another mode"}?`}
+      />
     </AppShell>
   );
 }

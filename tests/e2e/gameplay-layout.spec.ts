@@ -59,7 +59,7 @@ for (const viewport of [
 test("hosted quiz guards Next and fits a desktop stage", async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto("/studio");
-  await page.getByRole("button", { name: /start session/i }).click();
+  await page.getByRole("button", { name: "Start Session", exact: true }).click();
   await expect(page).toHaveURL(/\/play\/session-[^/]+$/);
   const sessionPlayer = page.locator("main.session-player");
   await sessionPlayer.waitFor({ state: "visible" });

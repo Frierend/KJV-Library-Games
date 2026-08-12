@@ -13,7 +13,7 @@ export function HostControlDock({
   start,
   center,
   end,
-  label = "Host controls",
+  label = "Host Controls",
 }: HostControlDockProps) {
   return (
     <nav aria-label={label} className="host-control-dock">

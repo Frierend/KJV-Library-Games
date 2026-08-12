@@ -30,7 +30,7 @@ describe("KJVenture application", () => {
   it("offers a persisted hosted session after a remount", async () => {
     const firstRender = render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /host a session/i }));
-    fireEvent.click(await screen.findByRole("button", { name: /start session/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Start Session$/ }));
     expect(await screen.findByText(/round 1 of 10/i)).toBeInTheDocument();
 
     firstRender.unmount();
