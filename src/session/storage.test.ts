@@ -10,6 +10,7 @@ import {
   readStoredSession,
   saveActiveSession,
   savePreferences,
+  normalizeRestoredSession,
 } from "./storage";
 
 describe("session persistence", () => {
@@ -35,6 +36,38 @@ describe("session persistence", () => {
     expect(readStoredSession().session?.roundStates[session.preparedRounds[0].id].result).toBe(
       "unchecked",
     );
+  });
+
+  it("preserves Verse Builder arrangement and attempt metadata while clearing transient incorrect status", () => {
+    const session = createActiveSession(defaultSessionConfig);
+    const round = {
+      ...session.preparedRounds[0],
+      gameId: "verse-builder" as const,
+      canonicalSegmentIds: ["one", "two", "three"],
+      shuffledSegmentIds: ["two", "one", "three"],
+    };
+    const snapshot = {
+      ...session,
+      schemaVersion: 3,
+      preparedRounds: [round],
+      roundStates: {
+        [round.id]: {
+          gameId: "verse-builder" as const,
+          result: "incorrect" as const,
+          arrangedSegmentIds: ["two", "one", "three"],
+          attemptCount: 1,
+          firstSubmissionCorrect: false,
+        },
+      },
+    };
+    const restored = normalizeRestoredSession(snapshot);
+
+    expect(restored.roundStates[round.id]).toMatchObject({
+      result: "unchecked",
+      arrangedSegmentIds: ["two", "one", "three"],
+      attemptCount: 1,
+      firstSubmissionCorrect: false,
+    });
   });
 
   it("reports corrupt state without deleting it", () => {
@@ -97,7 +130,7 @@ describe("session persistence", () => {
 
     const restored = readStoredSession();
     expect(restored.error).toBeNull();
-    expect(restored.session?.schemaVersion).toBe(2);
+    expect(restored.session?.schemaVersion).toBe(3);
     expect(restored.session?.config.mode).toBe("team");
     expect(restored.session?.config.players).toEqual([]);
     expect(restored.session?.scoreEvents[0].competitorId).toBe("team-1");

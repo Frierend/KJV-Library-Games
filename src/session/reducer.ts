@@ -12,6 +12,11 @@ export type SessionAction =
   | { type: "FOUR_ADD_LETTER"; tileId: string; capacity: number }
   | { type: "FOUR_DELETE_LETTER" }
   | { type: "FOUR_SUBMIT"; correct: boolean }
+  | { type: "VERSE_ADD_SEGMENT"; segmentId: string }
+  | { type: "VERSE_REMOVE_SEGMENT"; segmentId: string }
+  | { type: "VERSE_MOVE_SEGMENT"; segmentId: string; direction: "earlier" | "later" }
+  | { type: "VERSE_SUBMIT"; correct: boolean }
+  | { type: "VERSE_RESET" }
   | { type: "CLEAR_INCORRECT" }
   | { type: "REVEAL" }
   | { type: "RESET_ROUND" }
@@ -113,19 +118,93 @@ export function sessionReducer(
       }));
       return action.correct ? { ...next, timer: timerAfterResolution(next) } : next;
     }
+    case "VERSE_ADD_SEGMENT": {
+      if (
+        round.gameId !== "verse-builder" ||
+        state.gameId !== "verse-builder" ||
+        state.result !== "unchecked" ||
+        session.timer.status === "expired" ||
+        !round.shuffledSegmentIds.includes(action.segmentId) ||
+        state.arrangedSegmentIds.includes(action.segmentId) ||
+        state.arrangedSegmentIds.length >= round.shuffledSegmentIds.length
+      ) return session;
+      return updateCurrentRound(session, () => ({
+        ...state,
+        arrangedSegmentIds: [...state.arrangedSegmentIds, action.segmentId],
+      }));
+    }
+    case "VERSE_REMOVE_SEGMENT": {
+      if (
+        round.gameId !== "verse-builder" ||
+        state.gameId !== "verse-builder" ||
+        state.result !== "unchecked" ||
+        !state.arrangedSegmentIds.includes(action.segmentId)
+      ) return session;
+      return updateCurrentRound(session, () => ({
+        ...state,
+        arrangedSegmentIds: state.arrangedSegmentIds.filter((id) => id !== action.segmentId),
+      }));
+    }
+    case "VERSE_MOVE_SEGMENT": {
+      if (
+        round.gameId !== "verse-builder" ||
+        state.gameId !== "verse-builder" ||
+        state.result !== "unchecked"
+      ) return session;
+      const index = state.arrangedSegmentIds.indexOf(action.segmentId);
+      if (index < 0) return session;
+      const target = action.direction === "earlier" ? index - 1 : index + 1;
+      if (target < 0 || target >= state.arrangedSegmentIds.length) return session;
+      const arrangedSegmentIds = [...state.arrangedSegmentIds];
+      [arrangedSegmentIds[index], arrangedSegmentIds[target]] = [
+        arrangedSegmentIds[target],
+        arrangedSegmentIds[index],
+      ];
+      return updateCurrentRound(session, () => ({ ...state, arrangedSegmentIds }));
+    }
+    case "VERSE_SUBMIT": {
+      if (
+        round.gameId !== "verse-builder" ||
+        state.gameId !== "verse-builder" ||
+        state.result !== "unchecked" ||
+        session.timer.status === "expired" ||
+        state.arrangedSegmentIds.length !== round.shuffledSegmentIds.length
+      ) return session;
+      const next = updateCurrentRound(session, () => ({
+        ...state,
+        result: action.correct ? "correct" : "incorrect",
+        attemptCount: state.attemptCount + 1,
+        firstSubmissionCorrect: state.firstSubmissionCorrect ?? action.correct,
+      }));
+      return action.correct ? { ...next, timer: timerAfterResolution(next) } : next;
+    }
+    case "VERSE_RESET":
+      if (round.gameId !== "verse-builder" || state.gameId !== "verse-builder") return session;
+      return {
+        ...session,
+        status: "active",
+        updatedAt: new Date().toISOString(),
+        roundStates: {
+          ...session.roundStates,
+          [round.id]: initialRoundState(round),
+        },
+      };
     case "CLEAR_INCORRECT":
       if (state.result !== "incorrect") return session;
       return updateCurrentRound(session, () =>
         state.gameId === "quiz"
           ? { ...state, result: "unchecked", selectedIndex: null, wrongIndex: null }
-          : { ...state, result: "unchecked", selectedIds: [] },
+          : state.gameId === "four-pics"
+            ? { ...state, result: "unchecked", selectedIds: [] }
+            : { ...state, result: "unchecked" },
       );
     case "REVEAL": {
       if (state.result === "revealed") return session;
-      const next = updateCurrentRound(session, () => ({
-        ...state,
-        result: "revealed",
-      }));
+      const next = updateCurrentRound(session, () =>
+        round.gameId === "verse-builder" && state.gameId === "verse-builder"
+          ? { ...state, result: "revealed", arrangedSegmentIds: [...round.canonicalSegmentIds] }
+          : { ...state, result: "revealed" },
+      );
       return { ...next, timer: timerAfterResolution(next) };
     }
     case "RESET_ROUND":

@@ -1,7 +1,7 @@
 import type { LetterTile } from "../games/four-pics/fourPicsLogic";
 import type { GameId } from "../games/types";
 
-export const SESSION_SCHEMA_VERSION = 2;
+export const SESSION_SCHEMA_VERSION = 3;
 
 export type RoundResult =
   | "unchecked"
@@ -69,7 +69,16 @@ export interface PreparedFourPicsRound extends PreparedRoundBase {
   letterTiles: readonly LetterTile[];
 }
 
-export type PreparedRound = PreparedQuizRound | PreparedFourPicsRound;
+export interface PreparedVerseBuilderRound extends PreparedRoundBase {
+  gameId: "verse-builder";
+  canonicalSegmentIds: readonly string[];
+  shuffledSegmentIds: readonly string[];
+}
+
+export type PreparedRound =
+  | PreparedQuizRound
+  | PreparedFourPicsRound
+  | PreparedVerseBuilderRound;
 
 interface RoundStateBase {
   result: RoundResult;
@@ -88,7 +97,17 @@ export interface FourPicsRoundState extends RoundStateBase {
   revealedHintPositions: number[];
 }
 
-export type PersistedRoundState = QuizRoundState | FourPicsRoundState;
+export interface VerseBuilderRoundState extends RoundStateBase {
+  gameId: "verse-builder";
+  arrangedSegmentIds: string[];
+  attemptCount: number;
+  firstSubmissionCorrect: boolean | null;
+}
+
+export type PersistedRoundState =
+  | QuizRoundState
+  | FourPicsRoundState
+  | VerseBuilderRoundState;
 
 export interface TimerState {
   enabled: boolean;

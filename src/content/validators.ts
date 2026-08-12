@@ -3,8 +3,10 @@ import type {
   BibleContentRecord,
   FourPicsContentRecord,
   QuizContentRecord,
+  VerseBuilderContentRecord,
 } from "./types";
 import { CONTENT_SCHEMA_VERSION } from "./types";
+import { deriveVerseBuilderDifficulty, normalizeVerseBuilderText } from "./verseBuilder";
 
 export interface ContentValidationIssue {
   recordId: string;
@@ -161,14 +163,22 @@ function displayedStrings(record: BibleContentRecord) {
     const quiz = record as QuizContentRecord;
     return [...shared, quiz.question, quiz.answer, ...quiz.choices];
   }
-  const puzzle = record as FourPicsContentRecord;
+  if (record.id.startsWith("four-pics-")) {
+    const puzzle = record as FourPicsContentRecord;
+    return [
+      ...shared,
+      puzzle.answer,
+      ...(puzzle.acceptedAnswers ?? []),
+      puzzle.explanation,
+      ...puzzle.extraLetters,
+      ...puzzle.clues.flatMap((clue) => [clue.label, clue.emoji ?? "", clue.scene ?? ""]),
+    ];
+  }
+  const verse = record as VerseBuilderContentRecord;
   return [
     ...shared,
-    puzzle.answer,
-    ...(puzzle.acceptedAnswers ?? []),
-    puzzle.explanation,
-    ...puzzle.extraLetters,
-    ...puzzle.clues.flatMap((clue) => [clue.label, clue.emoji ?? "", clue.scene ?? ""]),
+    verse.canonicalText,
+    ...verse.segments.flatMap((segment) => [segment.id, segment.text]),
   ];
 }
 
@@ -267,11 +277,86 @@ export function validateFourPicsRecord(record: FourPicsContentRecord) {
   return issues;
 }
 
+export function validateVerseBuilderRecord(record: VerseBuilderContentRecord) {
+  const issues: ContentValidationIssue[] = [];
+  if (!/^verse-builder-[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(record.id)) {
+    issues.push(issue(record.id, "Verse Builder IDs must use the stable verse-builder-* format."));
+  }
+  if (record.schemaVersion !== CONTENT_SCHEMA_VERSION) {
+    issues.push(issue(record.id, "Unsupported Verse Builder content schema version."));
+  }
+  if (
+    !record.reference.trim() ||
+    record.reference !== record.referenceText ||
+    !isValidKjvCitation(record.referenceText)
+  ) {
+    issues.push(issue(record.id, "Reference must use a canonical KJV citation."));
+  }
+  if (!record.canonicalText.trim()) {
+    issues.push(issue(record.id, "Canonical KJV verse text is required."));
+  }
+  if (record.segments.length < 3 || record.segments.length > 12) {
+    issues.push(issue(record.id, "Verse Builder requires 3 to 12 segments."));
+  }
+  const segmentIds = record.segments.map((segment) => segment.id);
+  if (
+    segmentIds.some((id) => !id.trim()) ||
+    new Set(segmentIds).size !== segmentIds.length
+  ) {
+    issues.push(issue(record.id, "Segment IDs must be unique."));
+  }
+  if (record.segments.some((segment) => !segment.text.trim() || segment.text !== segment.text.trim())) {
+    issues.push(issue(record.id, "Segment text must be non-empty and trimmed."));
+  }
+  const reconstructed = normalizeVerseBuilderText(
+    record.segments.map((segment) => segment.text).join(" "),
+  );
+  if (reconstructed !== normalizeVerseBuilderText(record.canonicalText)) {
+    issues.push(issue(record.id, "Normalized segments must reconstruct canonical verse text exactly."));
+  }
+  if (record.difficulty !== deriveVerseBuilderDifficulty(record.canonicalText, record.segments)) {
+    issues.push(issue(record.id, "Difficulty does not match the deterministic Verse Builder formula."));
+  }
+  if (!record.contentPackIds.length || !record.contentPackIds.includes("kjventure-core")) {
+    issues.push(issue(record.id, "Verse Builder record must belong to the core content pack."));
+  }
+  if (!record.validation.sourceNote?.trim()) {
+    issues.push(issue(record.id, "Verse Builder source provenance is required."));
+  }
+  if (
+    record.validation.status === "reviewed" &&
+    (!record.validation.reviewer?.trim() || !record.validation.reviewedAt?.trim())
+  ) {
+    issues.push(issue(record.id, "Reviewed Verse Builder records require reviewer and review date metadata."));
+  }
+  return issues;
+}
+
+export function validateVerseBuilderRecords(records: readonly VerseBuilderContentRecord[]) {
+  const issues: ContentValidationIssue[] = [];
+  const ids = new Set<string>();
+  const canonicalTexts = new Set<string>();
+  for (const record of records) {
+    if (ids.has(record.id)) {
+      issues.push(issue(record.id, "Duplicate Verse Builder content ID."));
+    }
+    ids.add(record.id);
+    const canonical = normalizeVerseBuilderText(record.canonicalText).toLocaleLowerCase("en");
+    if (canonicalTexts.has(canonical)) {
+      issues.push(issue(record.id, "Duplicate Verse Builder canonical verse in content pack."));
+    }
+    canonicalTexts.add(canonical);
+    issues.push(...validateVerseBuilderRecord(record));
+  }
+  return issues;
+}
+
 export function validateContentRecords(records: readonly BibleContentRecord[]) {
   const issues: ContentValidationIssue[] = [];
   const ids = new Set<string>();
   const quizPrompts = new Map<string, string>();
   const fourPicsAnswers = new Set<string>();
+  const verseBuilderCanonicalTexts = new Set<string>();
 
   for (const record of records) {
     if (!record.id.trim()) issues.push(issue(record.id, "Content ID is required."));
@@ -303,7 +388,7 @@ export function validateContentRecords(records: readonly BibleContentRecord[]) {
       }
       quizPrompts.set(prompt, normalizeDuplicateText(quiz.answer));
       issues.push(...validateQuizRecord(quiz));
-    } else {
+    } else if (record.id.startsWith("four-pics-")) {
       const puzzle = record as FourPicsContentRecord;
       const answer = normalizeAnswer(puzzle.answer);
       if (fourPicsAnswers.has(answer)) {
@@ -311,6 +396,16 @@ export function validateContentRecords(records: readonly BibleContentRecord[]) {
       }
       fourPicsAnswers.add(answer);
       issues.push(...validateFourPicsRecord(puzzle));
+    } else if (record.id.startsWith("verse-builder-")) {
+      const verse = record as VerseBuilderContentRecord;
+      const canonical = normalizeVerseBuilderText(verse.canonicalText).toLocaleLowerCase("en");
+      if (verseBuilderCanonicalTexts.has(canonical)) {
+        issues.push(issue(record.id, "Duplicate Verse Builder canonical verse in content pack."));
+      }
+      verseBuilderCanonicalTexts.add(canonical);
+      issues.push(...validateVerseBuilderRecord(verse));
+    } else {
+      issues.push(issue(record.id, "Unsupported content record ID format."));
     }
   }
   return issues;

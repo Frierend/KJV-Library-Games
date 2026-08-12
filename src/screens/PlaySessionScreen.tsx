@@ -397,7 +397,9 @@ export function PlaySessionScreen() {
 
   useEffect(() => {
     const nextRound = activeSession?.preparedRounds[(activeSession?.roundIndex ?? -1) + 1];
-    if (nextRound) void gameRegistry[nextRound.gameId].preload();
+    if (nextRound && nextRound.gameId !== "verse-builder") {
+      void gameRegistry[nextRound.gameId].preload();
+    }
   }, [activeSession?.preparedRounds, activeSession?.roundIndex]);
 
   useEffect(() => {

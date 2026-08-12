@@ -135,7 +135,9 @@ export function normalizeRestoredSession(session: ActiveSession): ActiveSession 
       }
       return state.gameId === "quiz"
         ? [id, { ...state, result: "unchecked", selectedIndex: null, wrongIndex: null }]
-        : [id, { ...state, result: "unchecked", selectedIds: [] }];
+        : state.gameId === "four-pics"
+          ? [id, { ...state, result: "unchecked", selectedIds: [] }]
+          : [id, { ...state, result: "unchecked" }];
     }),
   );
   return {

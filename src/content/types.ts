@@ -31,10 +31,27 @@ export interface BibleContentMetadata {
   validation: ContentValidation;
 }
 
+export type VerseBuilderDifficulty = "introductory" | "intermediate" | "advanced";
+
+export interface VerseBuilderSegment {
+  id: string;
+  text: string;
+}
+
+export interface VerseBuilderContentRecord extends BibleContentMetadata {
+  reference: string;
+  canonicalText: string;
+  segments: readonly VerseBuilderSegment[];
+  difficulty: VerseBuilderDifficulty;
+}
+
 export type QuizContentRecord = QuizQuestion & BibleContentMetadata;
 export type FourPicsContentRecord = FourPicsPuzzle & BibleContentMetadata;
 
-export type BibleContentRecord = QuizContentRecord | FourPicsContentRecord;
+export type BibleContentRecord =
+  | QuizContentRecord
+  | FourPicsContentRecord
+  | VerseBuilderContentRecord;
 
 export interface ContentPack {
   id: string;

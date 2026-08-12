@@ -75,6 +75,15 @@ export function initialRoundState(round: PreparedRound): PersistedRoundState {
       eliminatedOptionIds: [],
     };
   }
+  if (round.gameId === "verse-builder") {
+    return {
+      gameId: "verse-builder",
+      result: "unchecked",
+      arrangedSegmentIds: [],
+      attemptCount: 0,
+      firstSubmissionCorrect: null,
+    };
+  }
   return {
     gameId: "four-pics",
     result: "unchecked",

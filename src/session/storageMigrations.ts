@@ -22,7 +22,8 @@ function isVersionedSnapshot(value: unknown): value is VersionedSnapshot {
 
 /**
  * Pure migration entry point. Version 1 is the first public snapshot, so the
- * migration table intentionally starts empty and rejects unknown versions.
+ * migration table keeps each public snapshot version explicit and rejects
+ * unknown versions.
  */
 export function migrateSessionSnapshot(value: unknown): unknown {
   if (!isVersionedSnapshot(value)) {

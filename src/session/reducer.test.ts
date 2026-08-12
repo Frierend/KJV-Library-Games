@@ -11,8 +11,83 @@ import {
   teamScores,
   winningStandings,
 } from "./selectors";
+import type {
+  ActiveSession,
+  PreparedVerseBuilderRound,
+  VerseBuilderRoundState,
+} from "./types";
+
+function verseBuilderSession() {
+  const base = createActiveSession(defaultSessionConfig);
+  const round: PreparedVerseBuilderRound = {
+    ...base.preparedRounds[0],
+    gameId: "verse-builder",
+    canonicalSegmentIds: ["one", "two", "three"],
+    shuffledSegmentIds: ["two", "one", "three"],
+  };
+  const state: VerseBuilderRoundState = {
+    gameId: "verse-builder",
+    result: "unchecked",
+    arrangedSegmentIds: [],
+    attemptCount: 0,
+    firstSubmissionCorrect: null,
+  };
+  return {
+    ...base,
+    preparedRounds: [round],
+    roundStates: { [round.id]: state },
+  } as ActiveSession;
+}
 
 describe("session reducer", () => {
+  it("supports fixture-only Verse Builder assembly operations", () => {
+    let session = verseBuilderSession();
+    session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId: "two" });
+    session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId: "one" });
+    session = sessionReducer(session, { type: "VERSE_MOVE_SEGMENT", segmentId: "two", direction: "later" });
+    expect((currentRoundState(session) as VerseBuilderRoundState).arrangedSegmentIds).toEqual([
+      "one",
+      "two",
+    ]);
+    session = sessionReducer(session, { type: "VERSE_REMOVE_SEGMENT", segmentId: "one" });
+    expect((currentRoundState(session) as VerseBuilderRoundState).arrangedSegmentIds).toEqual(["two"]);
+    session = sessionReducer(session, { type: "VERSE_RESET" });
+    expect((currentRoundState(session) as VerseBuilderRoundState).arrangedSegmentIds).toEqual([]);
+  });
+
+  it("tracks first-submission point eligibility across fixture-only retries", () => {
+    let session = verseBuilderSession();
+    for (const segmentId of ["two", "one", "three"]) {
+      session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId });
+    }
+    session = sessionReducer(session, { type: "VERSE_SUBMIT", correct: false });
+    expect(currentRoundState(session)).toMatchObject({
+      result: "incorrect",
+      attemptCount: 1,
+      firstSubmissionCorrect: false,
+    });
+    session = sessionReducer(session, { type: "CLEAR_INCORRECT" });
+    session = sessionReducer(session, { type: "VERSE_MOVE_SEGMENT", segmentId: "two", direction: "later" });
+    session = sessionReducer(session, { type: "VERSE_SUBMIT", correct: true });
+    expect(currentRoundState(session)).toMatchObject({
+      result: "correct",
+      attemptCount: 2,
+      firstSubmissionCorrect: false,
+    });
+  });
+
+  it("reveals the canonical fixture order and pauses its timer", () => {
+    let session = verseBuilderSession();
+    session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId: "two" });
+    session = sessionReducer(session, { type: "REVEAL" });
+
+    expect(currentRoundState(session)).toMatchObject({
+      result: "revealed",
+      arrangedSegmentIds: ["one", "two", "three"],
+    });
+    expect(session.timer.status).toBe("paused");
+  });
+
   it("does not advance an unchecked round", () => {
     const session = createActiveSession(defaultSessionConfig);
     const next = sessionReducer(session, { type: "NEXT" });
