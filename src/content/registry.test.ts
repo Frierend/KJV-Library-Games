@@ -4,7 +4,10 @@ import {
   allContentRecords,
   fourPicsContentRecords,
   quizContentRecords,
+  verseBuilderContentRecords,
+  getContentRecord,
 } from "./registry";
+import { gameRegistry } from "../games/registry";
 import { CONTENT_SCHEMA_VERSION } from "./types";
 import type { QuizContentRecord } from "./types";
 import {
@@ -29,21 +32,42 @@ describe("KJVenture content registry", () => {
   it("preserves the full legacy library with stable unique IDs", () => {
     expect(quizContentRecords).toHaveLength(100);
     expect(fourPicsContentRecords).toHaveLength(30);
-    expect(allContentRecords).toHaveLength(130);
-    expect(new Set(allContentRecords.map((record) => record.id))).toHaveLength(130);
+    expect(verseBuilderContentRecords).toHaveLength(20);
+    expect(allContentRecords).toHaveLength(150);
+    expect(new Set(allContentRecords.map((record) => record.id))).toHaveLength(150);
+    expect(getContentRecord(verseBuilderContentRecords[0].id)).toEqual(verseBuilderContentRecords[0]);
   });
 
   it("keeps visible references and marks migrated records", () => {
-    for (const record of allContentRecords) {
+    for (const record of [...quizContentRecords, ...fourPicsContentRecords]) {
       expect(record.schemaVersion).toBe(CONTENT_SCHEMA_VERSION);
       expect(record.referenceText).toBe(record.reference);
       expect(record.validation.status).toBe("legacy-imported");
+    }
+    for (const record of verseBuilderContentRecords) {
+      expect(record.schemaVersion).toBe(CONTENT_SCHEMA_VERSION);
+      expect(record.referenceText).toBe(record.reference);
+      expect(record.validation.status).toBe("reviewed");
     }
   });
 
   it("passes structural integrity validation", () => {
     expect(validateContentRecords(allContentRecords)).toEqual([]);
-    expect(contentPacks[0].recordIds).toHaveLength(130);
+    expect(contentPacks[0].recordIds).toHaveLength(150);
+  });
+
+  it("registers Verse Builder as a timed, reference-aware game", () => {
+    expect(gameRegistry["verse-builder"]).toMatchObject({
+      id: "verse-builder",
+      contentCount: 20,
+      capabilities: {
+        difficulty: true,
+        timer: true,
+        references: true,
+        explanations: false,
+      },
+    });
+    expect(gameRegistry["verse-builder"].loadComponent).toEqual(expect.any(Function));
   });
 
   it("accepts canonical KJV citation forms and rejects invalid books and ranges", () => {
@@ -97,7 +121,7 @@ describe("KJVenture content registry", () => {
   });
 
   it("locks every reviewed semantic field to its stable record ID", () => {
-    const semanticRecords = allContentRecords.map((record) =>
+    const semanticRecords = [...quizContentRecords, ...fourPicsContentRecords].map((record) =>
       record.id.startsWith("quiz-")
         ? [
             record.id,

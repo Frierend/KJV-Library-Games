@@ -5,6 +5,7 @@ import type {
   SessionPreset,
   TeamConfig,
 } from "./types";
+import type { GameId } from "../games/types";
 
 const colors: TeamConfig["color"][] = [
   "blue",
@@ -31,7 +32,7 @@ export function createPlayer(index: number): PlayerConfig {
 }
 
 export function createPlaylistItem(
-  gameId: "quiz" | "four-pics",
+  gameId: GameId,
   index: number,
   overrides: Partial<GamePlaylistItem> = {},
 ): GamePlaylistItem {
@@ -41,7 +42,7 @@ export function createPlaylistItem(
     contentPackId: "kjventure-core",
     roundCount: gameId === "quiz" ? 10 : 5,
     order: "random",
-    timerSeconds: gameId === "quiz" ? 20 : 30,
+    timerSeconds: gameId === "quiz" ? 20 : gameId === "verse-builder" ? 60 : 30,
     expiryBehavior: "require-reveal",
     ...overrides,
   };

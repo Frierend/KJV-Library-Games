@@ -1,4 +1,8 @@
-import { fourPicsContentRecords, quizContentRecords } from "../content/registry";
+import {
+  fourPicsContentRecords,
+  quizContentRecords,
+  verseBuilderContentRecords,
+} from "../content/registry";
 import type { GameId, RegisteredGame } from "./types";
 
 export const gameRegistry: Record<GameId, RegisteredGame> = {
@@ -29,6 +33,20 @@ export const gameRegistry: Record<GameId, RegisteredGame> = {
     contentCount: fourPicsContentRecords.length,
     preload: () => import("./four-pics/FourPicsGame"),
     loadComponent: () => import("./four-pics/FourPicsGame"),
+  },
+  "verse-builder": {
+    id: "verse-builder",
+    title: "Verse Builder",
+    shortDescription: "Put curated KJV verse segments in the correct order.",
+    capabilities: {
+      difficulty: true,
+      timer: true,
+      references: true,
+      explanations: false,
+    },
+    contentCount: verseBuilderContentRecords.length,
+    preload: () => import("./verse-builder/VerseBuilderGame"),
+    loadComponent: () => import("./verse-builder/VerseBuilderGame"),
   },
 };
 

@@ -88,6 +88,38 @@ describe("session reducer", () => {
     expect(session.timer.status).toBe("paused");
   });
 
+  it("auto-reveals a Verse Builder round in canonical order without rerandomizing it", () => {
+    let session = verseBuilderSession();
+    session.preparedRounds[0].expiryBehavior = "auto-reveal";
+    const shuffled = [...(session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds];
+
+    session = sessionReducer(session, { type: "TICK", remainingMs: 0 });
+
+    expect(currentRoundState(session)).toMatchObject({
+      result: "revealed",
+      arrangedSegmentIds: ["one", "two", "three"],
+    });
+    expect((session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds).toEqual(shuffled);
+    expect(session.timer.status).toBe("expired");
+  });
+
+  it("resets Verse Builder state and timer while preserving the prepared shuffle", () => {
+    let session = verseBuilderSession();
+    const shuffled = [...(session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds];
+    session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId: "two" });
+    session = sessionReducer(session, { type: "RESET_ROUND" });
+
+    expect(currentRoundState(session)).toMatchObject({
+      result: "unchecked",
+      arrangedSegmentIds: [],
+      attemptCount: 0,
+      firstSubmissionCorrect: null,
+    });
+    expect((session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds).toEqual(shuffled);
+    expect(session.timer.remainingMs).toBe(session.timer.durationMs);
+    expect(session.timer.status).toBe("running");
+  });
+
   it("does not advance an unchecked round", () => {
     const session = createActiveSession(defaultSessionConfig);
     const next = sessionReducer(session, { type: "NEXT" });

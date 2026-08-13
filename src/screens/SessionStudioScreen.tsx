@@ -17,6 +17,7 @@ import { IconButton } from "../components/ui/IconButton";
 import { InfoTip } from "../components/ui/InfoTip";
 import { StatusNotice } from "../components/ui/StatusNotice";
 import { gameRegistry } from "../games/registry";
+import type { GameId } from "../games/types";
 import { createId } from "../session/createSession";
 import { useSession } from "../session/controller";
 import {
@@ -45,7 +46,7 @@ import {
   type FullscreenFailure,
 } from "../utils";
 
-function newPlaylistItem(gameId: "quiz" | "four-pics", index: number) {
+function newPlaylistItem(gameId: GameId, index: number) {
   return {
     ...createPlaylistItem(gameId, index),
     id: createId(`playlist-${gameId}`),
@@ -53,7 +54,9 @@ function newPlaylistItem(gameId: "quiz" | "four-pics", index: number) {
 }
 
 function contentNoun(gameId: GamePlaylistItem["gameId"]) {
-  return gameId === "quiz" ? "question" : "puzzle";
+  if (gameId === "quiz") return "question";
+  if (gameId === "four-pics") return "puzzle";
+  return "verse";
 }
 
 function contentCountLabel(gameId: GamePlaylistItem["gameId"], count: number) {
@@ -318,13 +321,23 @@ export function SessionStudioScreen() {
                 >
                   Four Pics
                 </Button>
+                <Button
+                  leadingIcon={<Plus size={16} />}
+                  onClick={() => setConfig((current) => ({
+                    ...current,
+                    playlist: [...current.playlist, newPlaylistItem("verse-builder", current.playlist.length)],
+                  }))}
+                  variant="ghost"
+                >
+                  Verse Builder
+                </Button>
               </div>
             </div>
 
             <div className="playlist-editor">
               {config.playlist.map((item, index) => {
                 const game = gameRegistry[item.gameId];
-                const maxRounds = item.gameId === "quiz" ? 100 : 30;
+                const maxRounds = item.gameId === "quiz" ? 100 : item.gameId === "four-pics" ? 30 : 20;
                 return (
                   <article className="playlist-item" key={item.id}>
                     <div className="playlist-item__header">
@@ -338,8 +351,8 @@ export function SessionStudioScreen() {
                     </div>
                     <div className="playlist-settings">
                       <div className="studio-field"><span><label htmlFor={`${item.id}-content-pack`}>Content Pack</label><InfoTip label="Content Pack">The built-in KJVenture library supplies the questions and puzzles for this session.</InfoTip></span><select disabled id={`${item.id}-content-pack`} value="kjventure-core"><option>KJVenture Core Library</option></select></div>
-                      <label className="studio-field"><span>Number of {item.gameId === "quiz" ? "Questions" : "Puzzles"}</span><input aria-label={`${game.title} number of ${item.gameId === "quiz" ? "questions" : "puzzles"}`} max={maxRounds} min={1} onChange={(event) => updatePlaylistItem(item.id, { roundCount: Math.max(1, Math.min(maxRounds, Number(event.target.value) || 1)) })} type="number" value={item.roundCount} /></label>
-                      <div className="studio-field"><span><label htmlFor={`${item.id}-order`}>{item.gameId === "quiz" ? "Question Order" : "Puzzle Order"}</label><InfoTip label={item.gameId === "quiz" ? "Question Order" : "Puzzle Order"}>Random mixes the available {item.gameId === "quiz" ? "questions" : "puzzles"}; Source order follows the library sequence.</InfoTip></span><select id={`${item.id}-order`} onChange={(event) => updatePlaylistItem(item.id, { order: event.target.value as GamePlaylistItem["order"] })} value={item.order}><option value="random">Random</option><option value="source">Source order</option></select></div>
+                      <label className="studio-field"><span>Number of {contentNoun(item.gameId)[0].toUpperCase() + contentNoun(item.gameId).slice(1)}s</span><input aria-label={`${game.title} number of ${contentNoun(item.gameId)}s`} max={maxRounds} min={1} onChange={(event) => updatePlaylistItem(item.id, { roundCount: Math.max(1, Math.min(maxRounds, Number(event.target.value) || 1)) })} type="number" value={item.roundCount} /></label>
+                      <div className="studio-field"><span><label htmlFor={`${item.id}-order`}>{contentNoun(item.gameId)[0].toUpperCase() + contentNoun(item.gameId).slice(1)} Order</label><InfoTip label={`${contentNoun(item.gameId)[0].toUpperCase() + contentNoun(item.gameId).slice(1)} Order`}>Random mixes the available {contentNoun(item.gameId)}s; Source order follows the library sequence.</InfoTip></span><select id={`${item.id}-order`} onChange={(event) => updatePlaylistItem(item.id, { order: event.target.value as GamePlaylistItem["order"] })} value={item.order}><option value="random">Random</option><option value="source">Source order</option></select></div>
                       <label className="studio-field"><span>Time Limit</span><input aria-label={`${game.title} time limit`} disabled={item.timerSeconds === null} max={300} min={5} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: Math.max(5, Math.min(300, Number(event.target.value) || 20)) })} type="number" value={item.timerSeconds ?? 20} /></label>
                       <label className="studio-check"><input checked={item.timerSeconds === null} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: event.target.checked ? null : 20 })} type="checkbox" /><span>No Time Limit</span></label>
                       <div className="studio-field"><span><label htmlFor={`${item.id}-expiry`}>When Time Expires</label><InfoTip label="When Time Expires">Require reveal keeps the current question or puzzle in place. Allow Skipping bypasses it, while Auto-reveal shows the answer automatically.</InfoTip></span><select disabled={item.timerSeconds === null} id={`${item.id}-expiry`} onChange={(event) => updatePlaylistItem(item.id, { expiryBehavior: event.target.value as GamePlaylistItem["expiryBehavior"] })} value={item.expiryBehavior}><option value="require-reveal">Require reveal</option><option value="allow-skip">Allow Skipping</option><option value="auto-reveal">Auto-reveal</option></select></div>

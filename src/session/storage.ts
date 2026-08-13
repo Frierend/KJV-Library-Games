@@ -60,7 +60,7 @@ function isPlaylistItem(value: unknown): value is GamePlaylistItem {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<GamePlaylistItem>;
   return typeof candidate.id === "string" &&
-    (candidate.gameId === "quiz" || candidate.gameId === "four-pics") &&
+    (candidate.gameId === "quiz" || candidate.gameId === "four-pics" || candidate.gameId === "verse-builder") &&
     candidate.contentPackId === "kjventure-core" &&
     Number.isInteger(candidate.roundCount) && Number(candidate.roundCount) > 0 &&
     (candidate.order === "random" || candidate.order === "source") &&

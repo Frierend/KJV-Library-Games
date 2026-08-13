@@ -1,11 +1,13 @@
 import { fourPicsPuzzles } from "../data/fourPicsPuzzles";
 import { quizQuestions } from "../data/quizQuestions";
+import { verseBuilderStarterPack } from "../data/verseBuilderStarterPack";
 import { normalizeAnswer } from "../utils";
 import {
   CONTENT_SCHEMA_VERSION,
   type BibleContentRecord,
   type FourPicsContentRecord,
   type QuizContentRecord,
+  type VerseBuilderContentRecord,
 } from "./types";
 
 const legacyValidation = { status: "legacy-imported" as const };
@@ -33,9 +35,13 @@ export const fourPicsContentRecords: readonly FourPicsContentRecord[] =
     validation: legacyValidation,
   }));
 
+export const verseBuilderContentRecords: readonly VerseBuilderContentRecord[] =
+  verseBuilderStarterPack;
+
 export const allContentRecords: readonly BibleContentRecord[] = [
   ...quizContentRecords,
   ...fourPicsContentRecords,
+  ...verseBuilderContentRecords,
 ];
 
 const byId = new Map(allContentRecords.map((record) => [record.id, record]));
@@ -50,6 +56,10 @@ export function getQuizRecord(id: string) {
 
 export function getFourPicsRecord(id: string) {
   return fourPicsContentRecords.find((record) => record.id === id);
+}
+
+export function getVerseBuilderRecord(id: string) {
+  return verseBuilderContentRecords.find((record) => record.id === id);
 }
 
 export function contentRecordExists(id: string) {

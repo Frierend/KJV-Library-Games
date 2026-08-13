@@ -263,7 +263,13 @@ export function sessionReducer(
         };
       }
       const result = round.expiryBehavior === "auto-reveal" ? "revealed" : "expired";
-      const next = updateCurrentRound(session, () => ({ ...state, result }));
+      const next = updateCurrentRound(session, () =>
+        round.gameId === "verse-builder" &&
+        state.gameId === "verse-builder" &&
+        result === "revealed"
+          ? { ...state, result, arrangedSegmentIds: [...round.canonicalSegmentIds] }
+          : { ...state, result },
+      );
       return {
         ...next,
         timer: { ...session.timer, remainingMs: 0, status: "expired" },

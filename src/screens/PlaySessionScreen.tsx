@@ -20,19 +20,28 @@ import {
 import { StandingsDialog } from "../components/gameplay/StandingsDialog";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
-import { getFourPicsRecord, getQuizRecord } from "../content/registry";
+import { getFourPicsRecord, getQuizRecord, getVerseBuilderRecord } from "../content/registry";
 import {
   answerFromSlots,
   buildAnswerSlots,
   playerLetterCapacity,
 } from "../games/four-pics/fourPicsLogic";
+import {
+  isCorrect as isVerseCorrect,
+  type AssemblyState,
+  type AssemblySubmission,
+  type PreparedSequence,
+} from "../games/sequence/sequenceEngine";
+import { VerseBuilderBoard } from "../games/verse-builder/VerseBuilderBoard";
 import { useSession } from "../session/controller";
 import { canAdvance, currentPreparedRound, currentRoundState, playlistProgress } from "../session/selectors";
 import type {
   FourPicsRoundState,
   PreparedFourPicsRound,
   PreparedQuizRound,
+  PreparedVerseBuilderRound,
   QuizRoundState,
+  VerseBuilderRoundState,
 } from "../session/types";
 import { isFullscreenFailure, normalizeAnswer, playTone } from "../utils";
 import { gameRegistry } from "../games/registry";
@@ -330,6 +339,101 @@ function FourPicsRound({
   );
 }
 
+function verseBuilderSequence(
+  round: PreparedVerseBuilderRound,
+  record: ReturnType<typeof getVerseBuilderRecord>,
+): PreparedSequence | null {
+  if (!record) return null;
+  return {
+    items: record.segments.map((segment) => ({ id: segment.id, text: segment.text })),
+    canonicalIds: [...round.canonicalSegmentIds],
+    shuffledIds: [...round.shuffledSegmentIds],
+  };
+}
+
+function VerseBuilderRound({
+  round,
+  state,
+  onOpenStandings,
+}: {
+  round: PreparedVerseBuilderRound;
+  state: VerseBuilderRoundState;
+  onOpenStandings: () => void;
+}) {
+  const { activeSession, dispatch } = useSession();
+  const record = getVerseBuilderRecord(round.contentId);
+  const sequence = verseBuilderSequence(round, record);
+  if (!activeSession || !record || !sequence) return null;
+
+  const assembly: AssemblyState = {
+    selectedIds: state.arrangedSegmentIds,
+    attemptCount: state.attemptCount,
+    firstSubmissionCorrect: state.firstSubmissionCorrect,
+  };
+  const showReference =
+    activeSession.config.referenceDisplay === "always" ||
+    (activeSession.config.referenceDisplay === "on-resolution" &&
+      (state.result === "correct" || state.result === "revealed"));
+
+  function updateAssembly(next: AssemblyState) {
+    const currentIds = state.arrangedSegmentIds;
+    const nextIds = [...next.selectedIds];
+    if (nextIds.length > currentIds.length) {
+      const added = nextIds.find((id) => !currentIds.includes(id));
+      if (added) dispatch({ type: "VERSE_ADD_SEGMENT", segmentId: added });
+      return;
+    }
+    if (nextIds.length < currentIds.length) {
+      const removed = currentIds.find((id) => !nextIds.includes(id));
+      if (removed) dispatch({ type: "VERSE_REMOVE_SEGMENT", segmentId: removed });
+      return;
+    }
+    const changedIndex = nextIds.findIndex((id, index) => id !== currentIds[index]);
+    if (changedIndex >= 0) {
+      const movedId = nextIds[changedIndex];
+      const previousIndex = currentIds.indexOf(movedId);
+      dispatch({
+        type: "VERSE_MOVE_SEGMENT",
+        segmentId: movedId,
+        direction: previousIndex > changedIndex ? "earlier" : "later",
+      });
+    }
+  }
+
+  function submitAssembly(submission: AssemblySubmission) {
+    if (submission.outcome === "incomplete") return;
+    dispatch({ type: "VERSE_SUBMIT", correct: submission.outcome === "correct" });
+  }
+
+  return (
+    <>
+      {activeSession.config.showAudienceScores && (
+        <Scoreboard
+          audience
+          dispatch={dispatch}
+          onOpenStandings={onOpenStandings}
+          readOnly
+          session={activeSession}
+        />
+      )}
+      <VerseBuilderBoard
+        assembly={assembly}
+        canonicalText={record.canonicalText}
+        competitive={activeSession.config.mode === "team" || activeSession.config.mode === "individual"}
+        expiryBehavior={round.expiryBehavior}
+        motion={activeSession.config.motion}
+        onAssemblyChange={updateAssembly}
+        onReset={() => dispatch({ type: "RESET_ROUND" })}
+        onSubmit={submitAssembly}
+        reference={record.referenceText}
+        result={state.result}
+        sequence={sequence}
+        showReference={showReference}
+      />
+    </>
+  );
+}
+
 export function PlaySessionScreen() {
   const { sessionId } = useParams();
   const location = useLocation();
@@ -397,7 +501,7 @@ export function PlaySessionScreen() {
 
   useEffect(() => {
     const nextRound = activeSession?.preparedRounds[(activeSession?.roundIndex ?? -1) + 1];
-    if (nextRound && nextRound.gameId !== "verse-builder") {
+    if (nextRound) {
       void gameRegistry[nextRound.gameId].preload();
     }
   }, [activeSession?.preparedRounds, activeSession?.roundIndex]);
@@ -439,6 +543,24 @@ export function PlaySessionScreen() {
         type: "FOUR_SUBMIT",
         correct: accepted.includes(answerFromSlots(answerSlots)),
       });
+  }, [dispatch, round, roundState]);
+
+  const submitVerseBuilder = useMemo(() => {
+    if (!round || round.gameId !== "verse-builder" || !roundState || roundState.gameId !== "verse-builder") {
+      return null;
+    }
+    const record = getVerseBuilderRecord(round.contentId);
+    const sequence = verseBuilderSequence(round, record);
+    if (!record || !sequence) return null;
+    const assembly: AssemblyState = {
+      selectedIds: roundState.arrangedSegmentIds,
+      attemptCount: roundState.attemptCount,
+      firstSubmissionCorrect: roundState.firstSubmissionCorrect,
+    };
+    return () => {
+      if (roundState.result !== "unchecked") return;
+      dispatch({ type: "VERSE_SUBMIT", correct: isVerseCorrect(sequence, assembly) });
+    };
   }, [dispatch, round, roundState]);
 
   useEffect(() => {
@@ -489,6 +611,8 @@ export function PlaySessionScreen() {
           dispatch({ type: "NEXT" });
         } else if (round.gameId === "four-pics") {
           submitFourPics?.();
+        } else if (round.gameId === "verse-builder") {
+          submitVerseBuilder?.();
         }
       } else if (event.key === "ArrowRight" && advanceAllowed && !navigationLock.current) {
         event.preventDefault();
@@ -501,14 +625,18 @@ export function PlaySessionScreen() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [activeSession, advanceAllowed, confirmExit, dispatch, round, roundState, scoringOverlay, submitFourPics]);
+  }, [activeSession, advanceAllowed, confirmExit, dispatch, round, roundState, scoringOverlay, submitFourPics, submitVerseBuilder]);
 
   if (!activeSession) return <Navigate replace to="/" />;
   if (activeSession.id !== sessionId) return <Navigate replace to="/restore" />;
   if (activeSession.status === "complete") return <SessionCompletion />;
   if (!round || !roundState) return <Navigate replace to="/" />;
 
-  const gameName = round.gameId === "quiz" ? "KJV Bible Quiz" : "4 Pics 1 Word";
+  const gameName = round.gameId === "quiz"
+    ? "KJV Bible Quiz"
+    : round.gameId === "four-pics"
+      ? "4 Pics 1 Word"
+      : "Verse Builder";
   const handleNext = () => {
     if (!advanceAllowed || navigationLock.current) return;
     navigationLock.current = true;
@@ -556,6 +684,12 @@ export function PlaySessionScreen() {
         />
       ) : round.gameId === "four-pics" && roundState.gameId === "four-pics" ? (
         <FourPicsRound
+          onOpenStandings={() => openScoringOverlay("standings")}
+          round={round}
+          state={roundState}
+        />
+      ) : round.gameId === "verse-builder" && roundState.gameId === "verse-builder" ? (
+        <VerseBuilderRound
           onOpenStandings={() => openScoringOverlay("standings")}
           round={round}
           state={roundState}

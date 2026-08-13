@@ -1,6 +1,7 @@
 import { CONTENT_VERSION } from "../content/types";
 import { prepareFourPicsRounds } from "../games/four-pics/fourPicsAdapter";
 import { prepareQuizRounds } from "../games/quiz/quizAdapter";
+import { prepareVerseBuilderRounds } from "../games/verse-builder/verseBuilderAdapter";
 import {
   SESSION_SCHEMA_VERSION,
   type ActiveSession,
@@ -42,6 +43,18 @@ function preparePlaylistItem(
         playlistItemId: item.id,
         contentId: record.id,
         gameId: "quiz" as const,
+        timerSeconds: item.timerSeconds,
+        expiryBehavior: item.expiryBehavior,
+      }),
+    );
+  }
+
+  if (item.gameId === "verse-builder") {
+    return prepareVerseBuilderRounds(item.roundCount, item.order, random).map(
+      (prepared, index) => ({
+        ...prepared,
+        id: `${item.id}-${index + 1}-${prepared.contentId}`,
+        playlistItemId: item.id,
         timerSeconds: item.timerSeconds,
         expiryBehavior: item.expiryBehavior,
       }),

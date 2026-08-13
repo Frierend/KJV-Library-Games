@@ -28,6 +28,14 @@ export function ExploreGamesScreen() {
           preview={<div className="pics-preview"><span>🌧️</span><span>🛶</span><span>🦁</span><span>🌈</span></div>}
           title="4 Pics 1 Word"
         />
+        <GameCard
+          accent="blue"
+          badge="20 verses"
+          description="Arrange curated KJV segments, build Scripture recall, and reveal the reference."
+          onPlay={() => navigate("/games/verse-builder")}
+          preview={<div className="quiz-preview"><span>In the</span><span>beginning</span><span>God</span><span>created</span></div>}
+          title="Verse Builder"
+        />
       </section>
     </AppShell>
   );

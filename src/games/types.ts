@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-export type GameId = "quiz" | "four-pics";
+export type GameId = "quiz" | "four-pics" | "verse-builder";
 
 export interface GameCapabilities {
   difficulty: boolean;

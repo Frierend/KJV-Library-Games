@@ -32,6 +32,23 @@ describe("Session Studio scoring modes", () => {
     expect(screen.getByText("Reduced Motion")).toBeVisible();
   });
 
+  it("adds Verse Builder with twenty available verses and its sixty-second default", () => {
+    renderStudio();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verse Builder" }));
+
+    expect(screen.getByText("20 verses available")).toBeVisible();
+    expect(screen.getByLabelText("Verse Builder number of verses")).toHaveValue(5);
+    expect(screen.getByLabelText("Verse Builder time limit")).toHaveValue(60);
+    expect(screen.getAllByText("Verse Builder").length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Start Session$/ }));
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    expect(stored.config.playlist[1].gameId).toBe("verse-builder");
+    expect(stored.preparedRounds[0].gameId).toBe("quiz");
+    expect(stored.preparedRounds[10].gameId).toBe("verse-builder");
+  });
+
   it("groups presentation settings without changing their stored values", () => {
     renderStudio();
 

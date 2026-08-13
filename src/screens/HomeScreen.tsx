@@ -88,7 +88,7 @@ export function HomeScreen() {
           <Gamepad2 aria-hidden="true" />
           <span className="eyebrow">Quick Play</span>
           <h2>Explore Games</h2>
-          <p>Open the 100-question quiz or all 30 Four Pics puzzles directly.</p>
+          <p>Open the quiz, Four Pics, or Verse Builder directly.</p>
         </Link>
         <Link className="journey-card" to="/studio#presets">
           <Download aria-hidden="true" />

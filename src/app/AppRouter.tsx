@@ -27,11 +27,14 @@ const RestoreSessionScreen = lazy(() =>
 
 const QuizGame = lazy(() => import("../games/quiz/QuizGame"));
 const FourPicsGame = lazy(() => import("../games/four-pics/FourPicsGame"));
+const VerseBuilderGame = lazy(() => import("../games/verse-builder/VerseBuilderGame"));
 
-function QuickGame({ game }: { game: "quiz" | "four-pics" }) {
+function QuickGame({ game }: { game: "quiz" | "four-pics" | "verse-builder" }) {
   const navigate = useNavigate();
   const onExit = () => navigate("/games");
-  return game === "quiz" ? <QuizGame onExit={onExit} /> : <FourPicsGame onExit={onExit} />;
+  if (game === "quiz") return <QuizGame onExit={onExit} />;
+  if (game === "four-pics") return <FourPicsGame onExit={onExit} />;
+  return <VerseBuilderGame onExit={onExit} />;
 }
 
 function MotionPreferenceSync() {
@@ -67,6 +70,7 @@ export function AppRouter() {
         <Route element={<ExploreGamesScreen />} path="/games" />
         <Route element={<QuickGame game="quiz" />} path="/games/quiz" />
         <Route element={<QuickGame game="four-pics" />} path="/games/four-pics" />
+        <Route element={<QuickGame game="verse-builder" />} path="/games/verse-builder" />
         <Route element={<SessionStudioScreen />} path="/studio" />
         <Route element={<PlaySessionScreen />} path="/play/:sessionId" />
         <Route element={<RestoreSessionScreen />} path="/restore" />

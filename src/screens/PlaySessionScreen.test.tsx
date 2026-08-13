@@ -173,6 +173,63 @@ describe("hosted session integrity", () => {
     },
   );
 
+  it("renders a hosted Verse Builder round from persisted segment order", () => {
+    const config = {
+      ...defaultSessionConfig,
+      mode: "team" as const,
+      teams,
+      playlist: [createPlaylistItem("verse-builder", 0, {
+        roundCount: 1,
+        order: "source",
+        timerSeconds: null,
+      })],
+    };
+    renderHostedSession(config);
+
+    expect(screen.getByRole("region", { name: "Verse Builder" })).toBeVisible();
+    expect(screen.getByText("Put the verse in order")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Host Team Score Controls" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Add segment 1 of/ })).toBeEnabled();
+
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    const round = stored.preparedRounds[0];
+    for (const [index] of round.canonicalSegmentIds.entries()) {
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(`Add segment ${index + 1} of`) }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Submit Answer" }));
+
+    expect(screen.getByText("Correct - eligible for +1.")).toBeVisible();
+    expect(JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null").roundStates[round.id]).toMatchObject({
+      result: "correct",
+      firstSubmissionCorrect: true,
+    });
+  });
+
+  it("restores Verse Builder using the saved arrangement and shuffle", () => {
+    const config = {
+      ...defaultSessionConfig,
+      playlist: [createPlaylistItem("verse-builder", 0, {
+        roundCount: 1,
+        order: "source",
+        timerSeconds: null,
+      })],
+    };
+    const firstView = renderHostedSession(config);
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    const round = stored.preparedRounds[0];
+    const firstAvailableButton = screen.getByRole("button", { name: /Add segment 1 of/ });
+    const firstAvailable = firstAvailableButton.textContent;
+    fireEvent.click(firstAvailableButton);
+    firstView.unmount();
+
+    renderRestoredSession(stored.id);
+
+    expect(screen.getByRole("button", { name: /Remove/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Add segment 1 of/ })).toBeNull();
+    expect(screen.getByRole("list", { name: "Your Verse in current order" })).toHaveTextContent(firstAvailable ?? "");
+    expect(JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null").preparedRounds[0].shuffledSegmentIds).toEqual(round.shuffledSegmentIds);
+  });
+
   it("counts down from 5:00, preserves the paused value, and resumes once per second", () => {
     renderHostedSession({
       ...defaultSessionConfig,
