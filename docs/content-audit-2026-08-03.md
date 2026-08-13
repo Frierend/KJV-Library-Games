@@ -18,6 +18,34 @@ Every prompt, answer, option, citation, explanation, clue label, and accepted an
 
 The review checked factual accuracy, exact answer keys, distractor uniqueness, citation relevance, KJV-compatible wording, misleading ambiguity, duplicate/contradictory prompts, Unicode integrity, clue accuracy, letter-bank solvability for every possible generated hint position, stable IDs, pack membership, and derived-registry coverage.
 
+## Historical source status
+
+The historical audit source remains recorded for provenance:
+
+- Artifact: `kjvtxt.zip`
+- Recorded SHA-256: `1FBE9C708D508EFFD13CF2C1238D38B7E13476734876F0580D8DC61941916F7C`
+- Status as of 2026-08-13: unavailable locally
+
+The historical artifact is not being treated as though it is still available, and its hash is not being reused for the current Verse Builder source.
+
+## Current approved Verse Builder source
+
+Verse Builder starter content is re-baselined to a currently obtainable official eBible distribution:
+
+- Translation: King James / Authorized Version, standardized 1769 text
+- Provider: eBible.org / CrossWire Bible Society
+- Artifact: `eng-kjv_vpl.zip`
+- Acquisition: official eBible.org Scriptures distribution
+- Acquisition date: 2026-08-13
+- Locally verified SHA-256: `0E2C5C10C808BAFB2A9F55B95A1A0908FB28E71DD67661B367D0F26B7551C39A`
+- Scope: standard 66-book Protestant canon only for KJVenture content
+- Raw artifact location: external to the Git repository
+- Reason for re-baseline: the historical audited archive was unavailable; the project adopted a currently obtainable official provider artifact to make Scripture-content provenance reproducible.
+
+The archive contains `eng-kjv_vpl.txt`, `eng-kjv_vpl.xml`, and `eng-kjv_vpl.sql` representations, plus descriptive metadata. The Verse Builder pack uses `eng-kjv_vpl.xml`, whose UTF-8 `<v b="..." c="..." v="...">...</v>` records provide deterministic book/chapter/verse locators and exact verse text. The provider metadata identifies this distribution as including Apocrypha/Deuterocanon; KJVenture selection explicitly excludes those books and uses only the standard 66-book Protestant canon. The XML records may contain a leading paragraph marker (`¶`), which is removed only as deterministic source-format markup before trimming; no Scripture wording is otherwise changed.
+
+The new archive is not claimed to be byte-identical to the historical archive.
+
 ## Corrections
 
 | ID | Original wording / answer / citation | Corrected wording / answer / citation | Reason |
