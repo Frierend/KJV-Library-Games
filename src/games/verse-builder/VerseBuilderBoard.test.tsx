@@ -119,6 +119,25 @@ describe("Verse Builder board", () => {
     expect(screen.getByText("Genesis 1:1")).toBeInTheDocument();
   });
 
+  it("keeps an always-visible reference visible before the answer is resolved", () => {
+    render(
+      <VerseBuilderBoard
+        assembly={createAssemblyState(sequence)}
+        canonicalText="In the beginning God created the heaven and the earth."
+        onAssemblyChange={() => undefined}
+        onReset={() => undefined}
+        onSubmit={() => undefined}
+        reference="Genesis 1:1"
+        result="unchecked"
+        sequence={sequence}
+        showReference
+      />,
+    );
+
+    expect(screen.getByText("Genesis 1:1")).toBeVisible();
+    expect(screen.getByText("Genesis 1:1").parentElement).not.toHaveClass("feedback--empty");
+  });
+
   it("provides contextual accessible names and a reduced-motion class", () => {
     render(<Harness />);
     expect(screen.getByRole("button", { name: "Add segment 1 of 3: In the beginning" })).toBeInTheDocument();

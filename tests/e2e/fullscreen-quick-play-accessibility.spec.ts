@@ -10,7 +10,9 @@ async function openQuickGame(
     await page.getByRole("button", { name: "Explore Games" }).click();
   }
   await expect(page.getByRole("heading", { name: "Explore Games" })).toBeVisible();
-  const card = page.locator(`.game-card--${game === "quiz" ? "blue" : "teal"}`);
+  const card = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: game === "quiz" ? "KJV Bible Quiz" : "4 Pics 1 Word" }),
+  });
   await card.getByRole("button", { name: /open game/i }).click();
   await expect(
     page.getByRole("button", { name: game === "quiz" ? "Start Quiz" : "Start Game" }),

@@ -32,12 +32,12 @@ type FocusTarget =
   | { kind: "answer" | "available"; id: string }
   | { kind: "reset" };
 
-function resultClass(result: RoundResult) {
+function resultClass(result: RoundResult, showReference: boolean) {
   if (result === "incorrect") return "feedback--wrong";
   if (result === "expired") return "feedback--expired";
   if (result === "correct") return "feedback--correct";
   if (result === "revealed") return "feedback--revealed";
-  return "feedback--empty";
+  return showReference ? "" : "feedback--empty";
 }
 
 export function VerseBuilderBoard({
@@ -255,7 +255,7 @@ export function VerseBuilderBoard({
       <div
         aria-atomic="true"
         aria-live="polite"
-        className={`feedback ${resultClass(result)} ${result === "unchecked" && !showReference ? "feedback--empty" : ""}`}
+        className={`feedback ${resultClass(result, showReference)}`}
         ref={feedbackRef}
         tabIndex={-1}
       >
