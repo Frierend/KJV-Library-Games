@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createActiveSession } from "./createSession";
 import { defaultSessionConfig } from "./presets";
+import { createPlaylistItem } from "./presets";
 import { sessionReducer } from "./reducer";
 import {
   canAdvance,
@@ -13,19 +14,32 @@ import {
 } from "./selectors";
 import type {
   ActiveSession,
-  PreparedVerseBuilderRound,
-  VerseBuilderRoundState,
+  MissingWordsRoundState,
+  PreparedMissingWordsRound,
+  PreparedVerseOrderRound,
+  VerseOrderRoundState,
 } from "./types";
+import { getVerseBuilderRecord } from "../content/registry";
+import { tokenizeVerse } from "../games/verse-builder/missing-words/missingWordsEngine";
+import { DEFAULT_VERSE_BUILDER_SETTINGS } from "../games/verse-builder/verseBuilderTypes";
+
+function wordTokenIndex(text: string, word: string) {
+  const tokens = tokenizeVerse(text);
+  const match = tokens.findIndex((token) => token.kind === "word" && token.word === word);
+  if (match < 0) throw new Error(`Missing word fixture: ${word}`);
+  return match;
+}
 
 function verseBuilderSession() {
   const base = createActiveSession(defaultSessionConfig);
-  const round: PreparedVerseBuilderRound = {
+  const round: PreparedVerseOrderRound = {
     ...base.preparedRounds[0],
     gameId: "verse-builder",
+    playStyle: "verse-order",
     canonicalSegmentIds: ["one", "two", "three"],
     shuffledSegmentIds: ["two", "one", "three"],
   };
-  const state: VerseBuilderRoundState = {
+  const state: VerseOrderRoundState = {
     gameId: "verse-builder",
     result: "unchecked",
     arrangedSegmentIds: [],
@@ -39,20 +53,89 @@ function verseBuilderSession() {
   } as ActiveSession;
 }
 
+function missingWordsSession() {
+  const record = getVerseBuilderRecord("verse-builder-genesis-1-1");
+  if (!record) throw new Error("Reviewed Genesis fixture is missing");
+  const base = createActiveSession({
+    ...defaultSessionConfig,
+    playlist: [createPlaylistItem("verse-builder", 0, { verseBuilder: { ...DEFAULT_VERSE_BUILDER_SETTINGS } })],
+  });
+  const round: PreparedMissingWordsRound = {
+    ...base.preparedRounds[0],
+    gameId: "verse-builder",
+    playStyle: "missing-words",
+    difficulty: "advanced",
+    blankTokenIndices: [wordTokenIndex(record.canonicalText, "God"), wordTokenIndex(record.canonicalText, "earth")],
+  };
+  const state: MissingWordsRoundState = {
+    gameId: "verse-builder",
+    playStyle: "missing-words",
+    result: "unchecked",
+    drafts: ["", ""],
+    incorrectBlankIndexes: [],
+    attemptCount: 0,
+    firstSubmissionCorrect: null,
+  };
+  return { ...base, preparedRounds: [round], roundStates: { [round.id]: state } } as ActiveSession;
+}
+
 describe("session reducer", () => {
+  it("retains drafts and identifies only wrong blanks after an incorrect submit", () => {
+    let session = missingWordsSession();
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 0, value: "God" });
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 1, value: "wrong" });
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_SUBMIT", incorrectBlankIndexes: [1] });
+    expect(currentRoundState(session)).toMatchObject({
+      result: "incorrect",
+      drafts: ["God", "wrong"],
+      incorrectBlankIndexes: [1],
+      attemptCount: 1,
+      firstSubmissionCorrect: false,
+    });
+  });
+
+  it("rejects an incomplete Missing Words submit without counting an attempt", () => {
+    let session = missingWordsSession();
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 0, value: "God" });
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 1, value: "   " });
+    const next = sessionReducer(session, { type: "VERSE_MISSING_WORD_SUBMIT", incorrectBlankIndexes: [1] });
+    expect(next).toBe(session);
+    expect(currentRoundState(next)).toMatchObject({ result: "unchecked", drafts: ["God", "   "], incorrectBlankIndexes: [], attemptCount: 0, firstSubmissionCorrect: null });
+  });
+
+  it("uses CLEAR_INCORRECT without erasing Missing Words feedback state", () => {
+    let session = missingWordsSession();
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 0, value: "God" });
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 1, value: "wrong" });
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_SUBMIT", incorrectBlankIndexes: [1] });
+    session = sessionReducer(session, { type: "CLEAR_INCORRECT" });
+    expect(currentRoundState(session)).toMatchObject({ result: "unchecked", drafts: ["God", "wrong"], incorrectBlankIndexes: [1], attemptCount: 1, firstSubmissionCorrect: false });
+    session = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 1, value: "earth" });
+    expect(currentRoundState(session)).toMatchObject({ drafts: ["God", "earth"], incorrectBlankIndexes: [] });
+  });
+
+  it("resets drafts and timer while preserving prepared blank positions", () => {
+    const fixture = missingWordsSession();
+    const session = sessionReducer(fixture, { type: "RESET_ROUND" });
+    expect((currentRoundState(session) as MissingWordsRoundState).drafts).toEqual(["", ""]);
+    expect((session.preparedRounds[0] as PreparedMissingWordsRound).blankTokenIndices).toEqual(
+      (fixture.preparedRounds[0] as PreparedMissingWordsRound).blankTokenIndices,
+    );
+  });
+
   it("supports fixture-only Verse Builder assembly operations", () => {
     let session = verseBuilderSession();
     session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId: "two" });
     session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId: "one" });
     session = sessionReducer(session, { type: "VERSE_MOVE_SEGMENT", segmentId: "two", direction: "later" });
-    expect((currentRoundState(session) as VerseBuilderRoundState).arrangedSegmentIds).toEqual([
+    expect((currentRoundState(session) as VerseOrderRoundState).arrangedSegmentIds).toEqual([
       "one",
       "two",
     ]);
     session = sessionReducer(session, { type: "VERSE_REMOVE_SEGMENT", segmentId: "one" });
-    expect((currentRoundState(session) as VerseBuilderRoundState).arrangedSegmentIds).toEqual(["two"]);
+    expect((currentRoundState(session) as VerseOrderRoundState).arrangedSegmentIds).toEqual(["two"]);
     session = sessionReducer(session, { type: "VERSE_RESET" });
-    expect((currentRoundState(session) as VerseBuilderRoundState).arrangedSegmentIds).toEqual([]);
+    expect((currentRoundState(session) as VerseOrderRoundState).arrangedSegmentIds).toEqual([]);
   });
 
   it("tracks first-submission point eligibility across fixture-only retries", () => {
@@ -91,7 +174,7 @@ describe("session reducer", () => {
   it("auto-reveals a Verse Builder round in canonical order without rerandomizing it", () => {
     let session = verseBuilderSession();
     session.preparedRounds[0].expiryBehavior = "auto-reveal";
-    const shuffled = [...(session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds];
+    const shuffled = [...(session.preparedRounds[0] as PreparedVerseOrderRound).shuffledSegmentIds];
 
     session = sessionReducer(session, { type: "TICK", remainingMs: 0 });
 
@@ -99,13 +182,13 @@ describe("session reducer", () => {
       result: "revealed",
       arrangedSegmentIds: ["one", "two", "three"],
     });
-    expect((session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds).toEqual(shuffled);
+    expect((session.preparedRounds[0] as PreparedVerseOrderRound).shuffledSegmentIds).toEqual(shuffled);
     expect(session.timer.status).toBe("expired");
   });
 
   it("resets Verse Builder state and timer while preserving the prepared shuffle", () => {
     let session = verseBuilderSession();
-    const shuffled = [...(session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds];
+    const shuffled = [...(session.preparedRounds[0] as PreparedVerseOrderRound).shuffledSegmentIds];
     session = sessionReducer(session, { type: "VERSE_ADD_SEGMENT", segmentId: "two" });
     session = sessionReducer(session, { type: "RESET_ROUND" });
 
@@ -115,7 +198,7 @@ describe("session reducer", () => {
       attemptCount: 0,
       firstSubmissionCorrect: null,
     });
-    expect((session.preparedRounds[0] as PreparedVerseBuilderRound).shuffledSegmentIds).toEqual(shuffled);
+    expect((session.preparedRounds[0] as PreparedVerseOrderRound).shuffledSegmentIds).toEqual(shuffled);
     expect(session.timer.remainingMs).toBe(session.timer.durationMs);
     expect(session.timer.status).toBe("running");
   });

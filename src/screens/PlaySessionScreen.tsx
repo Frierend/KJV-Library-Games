@@ -33,14 +33,23 @@ import {
   type PreparedSequence,
 } from "../games/sequence/sequenceEngine";
 import { VerseBuilderBoard } from "../games/verse-builder/VerseBuilderBoard";
+import {
+  evaluateMissingWordsSubmission,
+  tokenizeVerse,
+} from "../games/verse-builder/missing-words/missingWordsEngine";
+import { MissingWordsBoard } from "../games/verse-builder/missing-words/MissingWordsBoard";
 import { useSession } from "../session/controller";
 import { canAdvance, currentPreparedRound, currentRoundState, playlistProgress } from "../session/selectors";
 import type {
   FourPicsRoundState,
+  MissingWordsRoundState,
+  PreparedMissingWordsRound,
+  PreparedVerseOrderRound,
   PreparedFourPicsRound,
   PreparedQuizRound,
   PreparedVerseBuilderRound,
   QuizRoundState,
+  VerseOrderRoundState,
   VerseBuilderRoundState,
 } from "../session/types";
 import { isFullscreenFailure, normalizeAnswer, playTone } from "../utils";
@@ -340,7 +349,7 @@ function FourPicsRound({
 }
 
 function verseBuilderSequence(
-  round: PreparedVerseBuilderRound,
+  round: PreparedVerseOrderRound,
   record: ReturnType<typeof getVerseBuilderRecord>,
 ): PreparedSequence | null {
   if (!record) return null;
@@ -351,13 +360,13 @@ function verseBuilderSequence(
   };
 }
 
-function VerseBuilderRound({
+function VerseOrderRound({
   round,
   state,
   onOpenStandings,
 }: {
-  round: PreparedVerseBuilderRound;
-  state: VerseBuilderRoundState;
+  round: PreparedVerseOrderRound;
+  state: VerseOrderRoundState;
   onOpenStandings: () => void;
 }) {
   const { activeSession, dispatch } = useSession();
@@ -432,6 +441,85 @@ function VerseBuilderRound({
       />
     </>
   );
+}
+
+function MissingWordsRound({
+  round,
+  state,
+  onOpenStandings,
+}: {
+  round: PreparedMissingWordsRound;
+  state: MissingWordsRoundState;
+  onOpenStandings: () => void;
+}) {
+  const { activeSession, dispatch } = useSession();
+  const record = getVerseBuilderRecord(round.contentId);
+  if (!activeSession || !record) return null;
+
+  const tokens = tokenizeVerse(record.canonicalText);
+  const competitive = activeSession.config.mode === "team" || activeSession.config.mode === "individual";
+
+  function submitMissingWords() {
+    const submission = evaluateMissingWordsSubmission(
+      tokens,
+      round.blankTokenIndices,
+      state.drafts,
+      state.attemptCount,
+      state.firstSubmissionCorrect,
+    );
+    if (submission.outcome === "incomplete") return;
+    dispatch({
+      type: "VERSE_MISSING_WORD_SUBMIT",
+      incorrectBlankIndexes: submission.incorrectBlankIndexes,
+    });
+  }
+
+  return (
+    <>
+      {activeSession.config.showAudienceScores && (
+        <Scoreboard
+          audience
+          dispatch={dispatch}
+          onOpenStandings={onOpenStandings}
+          readOnly
+          session={activeSession}
+        />
+      )}
+      <MissingWordsBoard
+        blankTokenIndices={round.blankTokenIndices}
+        canonicalText={record.canonicalText}
+        competitive={competitive}
+        drafts={state.drafts}
+        expiryBehavior={round.expiryBehavior}
+        firstSubmissionCorrect={state.firstSubmissionCorrect}
+        incorrectBlankIndexes={state.incorrectBlankIndexes}
+        motion={activeSession.config.motion}
+        onDraftChange={(blankIndex, value) => dispatch({ type: "VERSE_MISSING_WORD_CHANGE", blankIndex, value })}
+        onSubmit={submitMissingWords}
+        reference={record.referenceText}
+        result={state.result}
+        tokens={tokens}
+      />
+    </>
+  );
+}
+
+function VerseBuilderRound({
+  round,
+  state,
+  onOpenStandings,
+}: {
+  round: PreparedVerseBuilderRound;
+  state: VerseBuilderRoundState;
+  onOpenStandings: () => void;
+}) {
+  if (round.playStyle === "missing-words" && state.playStyle === "missing-words") {
+    return <MissingWordsRound onOpenStandings={onOpenStandings} round={round} state={state} />;
+  }
+  if (round.playStyle !== "missing-words" && state.playStyle !== "missing-words") {
+    return <VerseOrderRound onOpenStandings={onOpenStandings} round={round} state={state} />;
+  }
+  return null;
 }
 
 export function PlaySessionScreen() {
@@ -549,6 +637,7 @@ export function PlaySessionScreen() {
     if (!round || round.gameId !== "verse-builder" || !roundState || roundState.gameId !== "verse-builder") {
       return null;
     }
+    if (round.playStyle === "missing-words" || roundState.playStyle === "missing-words") return null;
     const record = getVerseBuilderRecord(round.contentId);
     const sequence = verseBuilderSequence(round, record);
     if (!record || !sequence) return null;
@@ -573,6 +662,10 @@ export function PlaySessionScreen() {
       activeSession.status === "complete"
     ) return;
     const handleKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable)) {
+        return;
+      }
       if (round.gameId === "quiz" && roundState.gameId === "quiz") {
         const choice = ["a", "b", "c", "d"].indexOf(event.key.toLowerCase());
         const record = getQuizRecord(round.contentId);

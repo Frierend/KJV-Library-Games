@@ -9,6 +9,8 @@ import { createPlaylistItem, defaultSessionConfig } from "../session/presets";
 import { ACTIVE_SESSION_KEY } from "../session/storage";
 import type { SessionAction } from "../session/reducer";
 import type { SessionConfig } from "../session/types";
+import { DEFAULT_VERSE_BUILDER_SETTINGS } from "../games/verse-builder/verseBuilderTypes";
+import { getVerseBuilderRecord } from "../content/registry";
 
 const teams: SessionConfig["teams"] = [
   { id: "team-1", name: "Blue", color: "blue" },
@@ -182,6 +184,7 @@ describe("hosted session integrity", () => {
         roundCount: 1,
         order: "source",
         timerSeconds: null,
+        verseBuilder: { ...DEFAULT_VERSE_BUILDER_SETTINGS, playStyle: "verse-order" },
       })],
     };
     renderHostedSession(config);
@@ -205,6 +208,27 @@ describe("hosted session integrity", () => {
     });
   });
 
+  it("renders hosted Missing Words with an always-visible reference and private input shortcuts", () => {
+    const record = getVerseBuilderRecord("verse-builder-genesis-1-1");
+    if (!record) throw new Error("Reviewed Genesis fixture is missing");
+    renderHostedSession({
+      ...defaultSessionConfig,
+      referenceDisplay: "hidden",
+      playlist: [createPlaylistItem("verse-builder", 0, {
+        roundCount: 1,
+        order: "source",
+        timerSeconds: null,
+        verseBuilder: { ...DEFAULT_VERSE_BUILDER_SETTINGS, playStyle: "missing-words", missingWordsDifficulty: "introductory" },
+      })],
+    });
+
+    const input = screen.getByRole("textbox", { name: `Missing word 1 of 1 in ${record.reference}` });
+    expect(screen.getByText(record.reference)).toBeVisible();
+    fireEvent.keyDown(input, { key: "r" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.queryByText("Answer revealed.")).not.toBeInTheDocument();
+  });
+
   it("restores Verse Builder using the saved arrangement and shuffle", () => {
     const config = {
       ...defaultSessionConfig,
@@ -212,6 +236,7 @@ describe("hosted session integrity", () => {
         roundCount: 1,
         order: "source",
         timerSeconds: null,
+        verseBuilder: { ...DEFAULT_VERSE_BUILDER_SETTINGS, playStyle: "verse-order" },
       })],
     };
     const firstView = renderHostedSession(config);

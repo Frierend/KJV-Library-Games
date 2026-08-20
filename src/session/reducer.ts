@@ -16,6 +16,8 @@ export type SessionAction =
   | { type: "VERSE_REMOVE_SEGMENT"; segmentId: string }
   | { type: "VERSE_MOVE_SEGMENT"; segmentId: string; direction: "earlier" | "later" }
   | { type: "VERSE_SUBMIT"; correct: boolean }
+  | { type: "VERSE_MISSING_WORD_CHANGE"; blankIndex: number; value: string }
+  | { type: "VERSE_MISSING_WORD_SUBMIT"; incorrectBlankIndexes: number[] }
   | { type: "VERSE_RESET" }
   | { type: "CLEAR_INCORRECT" }
   | { type: "REVEAL" }
@@ -121,7 +123,9 @@ export function sessionReducer(
     case "VERSE_ADD_SEGMENT": {
       if (
         round.gameId !== "verse-builder" ||
+        round.playStyle === "missing-words" ||
         state.gameId !== "verse-builder" ||
+        state.playStyle === "missing-words" ||
         state.result !== "unchecked" ||
         session.timer.status === "expired" ||
         !round.shuffledSegmentIds.includes(action.segmentId) ||
@@ -136,7 +140,9 @@ export function sessionReducer(
     case "VERSE_REMOVE_SEGMENT": {
       if (
         round.gameId !== "verse-builder" ||
+        round.playStyle === "missing-words" ||
         state.gameId !== "verse-builder" ||
+        state.playStyle === "missing-words" ||
         state.result !== "unchecked" ||
         !state.arrangedSegmentIds.includes(action.segmentId)
       ) return session;
@@ -148,7 +154,9 @@ export function sessionReducer(
     case "VERSE_MOVE_SEGMENT": {
       if (
         round.gameId !== "verse-builder" ||
+        round.playStyle === "missing-words" ||
         state.gameId !== "verse-builder" ||
+        state.playStyle === "missing-words" ||
         state.result !== "unchecked"
       ) return session;
       const index = state.arrangedSegmentIds.indexOf(action.segmentId);
@@ -165,7 +173,9 @@ export function sessionReducer(
     case "VERSE_SUBMIT": {
       if (
         round.gameId !== "verse-builder" ||
+        round.playStyle === "missing-words" ||
         state.gameId !== "verse-builder" ||
+        state.playStyle === "missing-words" ||
         state.result !== "unchecked" ||
         session.timer.status === "expired" ||
         state.arrangedSegmentIds.length !== round.shuffledSegmentIds.length
@@ -177,6 +187,49 @@ export function sessionReducer(
         firstSubmissionCorrect: state.firstSubmissionCorrect ?? action.correct,
       }));
       return action.correct ? { ...next, timer: timerAfterResolution(next) } : next;
+    }
+    case "VERSE_MISSING_WORD_CHANGE": {
+      if (
+        round.gameId !== "verse-builder" ||
+        round.playStyle !== "missing-words" ||
+        state.gameId !== "verse-builder" ||
+        state.playStyle !== "missing-words" ||
+        state.result === "correct" ||
+        state.result === "revealed" ||
+        state.result === "expired" ||
+        action.blankIndex < 0 ||
+        action.blankIndex >= state.drafts.length
+      ) return session;
+      return updateCurrentRound(session, () => ({
+        ...state,
+        drafts: state.drafts.map((draft, index) => index === action.blankIndex ? action.value : draft),
+        incorrectBlankIndexes: state.incorrectBlankIndexes.filter((index) => index !== action.blankIndex),
+      }));
+    }
+    case "VERSE_MISSING_WORD_SUBMIT": {
+      if (
+        round.gameId !== "verse-builder" ||
+        round.playStyle !== "missing-words" ||
+        state.gameId !== "verse-builder" ||
+        state.playStyle !== "missing-words" ||
+        (state.result !== "unchecked" && state.result !== "incorrect") ||
+        session.timer.status === "expired" ||
+        state.drafts.some((draft) => !draft.trim())
+      ) return session;
+      const incorrectBlankIndexes = [...new Set(action.incorrectBlankIndexes)];
+      if (
+        incorrectBlankIndexes.some((index) => !Number.isInteger(index) || index < 0 || index >= state.drafts.length) ||
+        incorrectBlankIndexes.length !== action.incorrectBlankIndexes.length
+      ) return session;
+      const correct = incorrectBlankIndexes.length === 0;
+      const next = updateCurrentRound(session, () => ({
+        ...state,
+        result: correct ? "correct" : "incorrect",
+        incorrectBlankIndexes,
+        attemptCount: state.attemptCount + 1,
+        firstSubmissionCorrect: state.firstSubmissionCorrect ?? correct,
+      }));
+      return correct ? { ...next, timer: timerAfterResolution(next) } : next;
     }
     case "VERSE_RESET":
       if (round.gameId !== "verse-builder" || state.gameId !== "verse-builder") return session;
@@ -201,7 +254,7 @@ export function sessionReducer(
     case "REVEAL": {
       if (state.result === "revealed") return session;
       const next = updateCurrentRound(session, () =>
-        round.gameId === "verse-builder" && state.gameId === "verse-builder"
+        round.gameId === "verse-builder" && state.gameId === "verse-builder" && round.playStyle !== "missing-words" && state.playStyle !== "missing-words"
           ? { ...state, result: "revealed", arrangedSegmentIds: [...round.canonicalSegmentIds] }
           : { ...state, result: "revealed" },
       );
@@ -266,6 +319,8 @@ export function sessionReducer(
       const next = updateCurrentRound(session, () =>
         round.gameId === "verse-builder" &&
         state.gameId === "verse-builder" &&
+        round.playStyle !== "missing-words" &&
+        state.playStyle !== "missing-words" &&
         result === "revealed"
           ? { ...state, result, arrangedSegmentIds: [...round.canonicalSegmentIds] }
           : { ...state, result },
