@@ -31,9 +31,9 @@ export function ExploreGamesScreen() {
         <GameCard
           accent="blue"
           badge="20 verses"
-          description="Arrange curated KJV segments, build Scripture recall, and reveal the reference."
+          description="Practice curated KJV verses, build Scripture recall, and reveal the reference."
           onPlay={() => navigate("/games/verse-builder")}
-          preview={<div className="quiz-preview"><span>In the</span><span>beginning</span><span>God</span><span>created</span></div>}
+          preview={<div className="verse-builder-preview"><span>In the</span><span>beginning</span><span>God</span><span>created</span></div>}
           title="Verse Builder"
         />
       </section>

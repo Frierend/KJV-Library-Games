@@ -25,8 +25,39 @@ async function expectNoSeriousViolations(page: Page) {
 }
 
 test.describe("Verse Builder Phase 13 production smoke", () => {
+  test("keeps the Verse Builder library preview text inside its tiles", async ({ page }) => {
+    await page.setViewportSize({ width: 947, height: 381 });
+    await page.goto("/games");
+
+    const beginningTile = page.locator(".game-card").nth(2).locator(".verse-builder-preview span").nth(1);
+    await expect(beginningTile).toBeVisible();
+    const overflow = await beginningTile.evaluate((element) => element.scrollWidth - element.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("keeps the setup back link above and aligned with the setup card", async ({ page }) => {
+    await page.setViewportSize({ width: 1298, height: 362 });
+    await page.goto("/games/verse-builder");
+    await expect(page.locator(".setup-card")).toBeVisible();
+
+    const report = await page.evaluate(() => {
+      const link = document.querySelector<HTMLElement>(".back-link");
+      const card = document.querySelector<HTMLElement>(".setup-card");
+      if (!link || !card) return null;
+      const linkRect = link.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      return {
+        alignedLeft: Math.abs(linkRect.left - cardRect.left) <= 1,
+        belowCard: linkRect.bottom <= cardRect.top + 1,
+      };
+    });
+
+    expect(report).toEqual({ alignedLeft: true, belowCard: true });
+  });
+
   test("Quick Play supports setup validation, retry, reveal, and completion", async ({ page }) => {
     await page.goto("/games/verse-builder");
+    await page.getByRole("button", { name: "Verse Order", exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "Verse Builder" })).toBeVisible();
     await expect(page.getByText("60 seconds per verse")).toBeVisible();
@@ -75,6 +106,7 @@ test.describe("Verse Builder Phase 13 production smoke", () => {
     await page.goto("/studio");
     await page.getByRole("button", { name: "Remove KJV Bible Quiz" }).click();
     await page.getByRole("button", { name: "Verse Builder", exact: true }).click();
+    await page.getByRole("button", { name: "Verse Order", exact: true }).click();
 
     const count = page.getByLabel("Verse Builder number of verses");
     const timer = page.getByLabel("Verse Builder time limit");
@@ -119,6 +151,7 @@ test.describe("Verse Builder Phase 13 production smoke", () => {
     ]) {
       await page.setViewportSize(viewport);
       await page.goto("/games/verse-builder");
+      await page.getByRole("button", { name: "Verse Order", exact: true }).click();
       await page.getByRole("button", { name: "Start Verse Builder" }).click();
       await expect(page.locator(".verse-builder-board")).toBeVisible();
       await expectNoSeriousViolations(page);
