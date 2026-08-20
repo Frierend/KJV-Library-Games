@@ -19,15 +19,24 @@ import {
   type PreparedSequence,
 } from "../sequence/sequenceEngine";
 import { VerseBuilderBoard } from "./VerseBuilderBoard";
+import {
+  evaluateMissingWordsSubmission,
+  selectMissingWordTokenIndices,
+  tokenizeVerse,
+  type VerseToken,
+} from "./missing-words/missingWordsEngine";
+import type { MissingWordsDifficulty, VerseBuilderPlayStyle, VerseOrderDifficulty } from "./verseBuilderTypes";
+import { MissingWordsBoard } from "./missing-words/MissingWordsBoard";
 
 type GamePhase = "setup" | "play" | "complete";
 type DifficultyFilter = "all" | VerseBuilderDifficulty;
 
 const countOptions = [5, 10, 15, 20] as const;
-const duration = 60;
+const durationOptions = [30, 45, 60, 90] as const;
 
-interface VerseBuilderGameProps {
+export interface VerseBuilderGameProps {
   onExit: () => void;
+  random?: () => number;
 }
 
 function difficultyLabel(value: DifficultyFilter) {
@@ -38,17 +47,34 @@ function segmentItems(segments: readonly VerseBuilderSegment[]) {
   return segments.map((segment) => ({ id: segment.id, text: segment.text }));
 }
 
-export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
+function isTextEntryTarget(target: EventTarget | null) {
+  const element = target instanceof HTMLElement ? target : null;
+  return Boolean(
+    element &&
+    (["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) || element.isContentEditable),
+  );
+}
+
+export default function VerseBuilderGame({ onExit, random = Math.random }: VerseBuilderGameProps) {
   const [phase, setPhase] = useState<GamePhase>("setup");
+  const [playStyle, setPlayStyle] = useState<VerseBuilderPlayStyle>("missing-words");
   const [roundCount, setRoundCount] = useState(5);
   const [customMode, setCustomMode] = useState(false);
   const [customDraft, setCustomDraft] = useState("5");
-  const [difficulty, setDifficulty] = useState<DifficultyFilter>("all");
+  const [missingWordsDifficulty, setMissingWordsDifficulty] = useState<MissingWordsDifficulty>("introductory");
+  const [verseOrderDifficulty, setVerseOrderDifficulty] = useState<VerseOrderDifficulty>("all");
+  const [duration, setDuration] = useState(60);
   const [customError, setCustomError] = useState("");
   const [rounds, setRounds] = useState<VerseBuilderContentRecord[]>([]);
   const [index, setIndex] = useState(0);
   const [sequence, setSequence] = useState<PreparedSequence | null>(null);
   const [assembly, setAssembly] = useState<AssemblyState | null>(null);
+  const [missingTokens, setMissingTokens] = useState<VerseToken[]>([]);
+  const [blankTokenIndices, setBlankTokenIndices] = useState<number[]>([]);
+  const [drafts, setDrafts] = useState<string[]>([]);
+  const [incorrectBlankIndexes, setIncorrectBlankIndexes] = useState<number[]>([]);
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [firstSubmissionCorrect, setFirstSubmissionCorrect] = useState<boolean | null>(null);
   const [result, setResult] = useState<RoundResult>("unchecked");
   const [timerSeed, setTimerSeed] = useState(0);
   const [sound, setSound] = useState(true);
@@ -56,10 +82,12 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
   const lastSoundSecond = useRef<number | null>(null);
 
   const availableRecords = useMemo(
-    () => difficulty === "all"
+    () => playStyle === "missing-words"
       ? verseBuilderContentRecords
-      : verseBuilderContentRecords.filter((record) => record.difficulty === difficulty),
-    [difficulty],
+      : verseOrderDifficulty === "all"
+        ? verseBuilderContentRecords
+        : verseBuilderContentRecords.filter((record) => record.difficulty === verseOrderDifficulty),
+    [playStyle, verseOrderDifficulty],
   );
   const current = rounds[index];
   const resolved = result === "correct" || result === "revealed";
@@ -71,12 +99,31 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
 
   useEffect(() => {
     if (phase !== "play" || !current) return;
-    const nextSequence = prepareSequence(segmentItems(current.segments));
-    setSequence(nextSequence);
-    setAssembly(createAssemblyState(nextSequence));
     setResult("unchecked");
     lastSoundSecond.current = null;
-  }, [current, phase]);
+    if (playStyle === "verse-order") {
+      const nextSequence = prepareSequence(segmentItems(current.segments), random);
+      setSequence(nextSequence);
+      setAssembly(createAssemblyState(nextSequence));
+      setMissingTokens([]);
+      setBlankTokenIndices([]);
+      setDrafts([]);
+      setIncorrectBlankIndexes([]);
+      setAttemptCount(0);
+      setFirstSubmissionCorrect(null);
+      return;
+    }
+    const tokens = tokenizeVerse(current.canonicalText);
+    const selectedBlankTokenIndices = selectMissingWordTokenIndices(tokens, current.id, missingWordsDifficulty);
+    setMissingTokens(tokens);
+    setBlankTokenIndices(selectedBlankTokenIndices);
+    setDrafts(Array(selectedBlankTokenIndices.length).fill(""));
+    setIncorrectBlankIndexes([]);
+    setAttemptCount(0);
+    setFirstSubmissionCorrect(null);
+    setSequence(null);
+    setAssembly(null);
+  }, [current, missingWordsDifficulty, phase, playStyle, random]);
 
   useEffect(() => {
     if (phase !== "play") return;
@@ -96,9 +143,7 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
   }, [phase, sound, timeLeft]);
 
   useEffect(() => {
-    if (phase === "play" && expired && result === "unchecked") {
-      setResult("expired");
-    }
+    if (phase === "play" && expired && result === "unchecked") setResult("expired");
   }, [expired, phase, result]);
 
   useEffect(() => {
@@ -108,13 +153,11 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
   useEffect(() => {
     if (phase !== "play") return;
     const handleKey = (event: KeyboardEvent) => {
+      if (isTextEntryTarget(event.target)) return;
       if (event.key.toLowerCase() === "r") {
         event.preventDefault();
         revealAnswer();
-      } else if (
-        (event.key === "Enter" || event.key === "ArrowRight") &&
-        resolved
-      ) {
+      } else if ((event.key === "Enter" || event.key === "ArrowRight") && resolved) {
         event.preventDefault();
         next();
       } else if (event.key === "ArrowLeft" && index > 0) {
@@ -130,22 +173,17 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
     const max = availableRecords.length;
     if (!customMode) {
       if (roundCount > max) {
-        setCustomError(`Only ${max} ${difficultyLabel(difficulty).toLowerCase()} ${max === 1 ? "verse is" : "verses are"} available.`);
+        setCustomError(`Only ${max} ${difficultyLabel(playStyle === "verse-order" ? verseOrderDifficulty : "all").toLowerCase()} ${max === 1 ? "verse is" : "verses are"} available.`);
         return null;
       }
       setCustomError("");
       return roundCount;
     }
     const value = Number(customDraft);
-    if (
-      customDraft.trim() === "" ||
-      !Number.isInteger(value) ||
-      value < 1 ||
-      value > max
-    ) {
+    if (customDraft.trim() === "" || !Number.isInteger(value) || value < 1 || value > max) {
       setCustomError(
         value > max
-          ? `Only ${max} ${difficultyLabel(difficulty).toLowerCase()} ${max === 1 ? "verse is" : "verses are"} available.`
+          ? `Only ${max} ${difficultyLabel(playStyle === "verse-order" ? verseOrderDifficulty : "all").toLowerCase()} ${max === 1 ? "verse is" : "verses are"} available.`
           : `Choose a whole number from 1 to ${max}.`,
       );
       return null;
@@ -158,25 +196,41 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
   function startGame() {
     const count = resolveCount();
     if (count === null) return;
-    setRounds(shuffle(availableRecords).slice(0, count));
+    setRounds(shuffle(availableRecords, random).slice(0, count));
     setIndex(0);
     setSequence(null);
     setAssembly(null);
+    setMissingTokens([]);
+    setBlankTokenIndices([]);
+    setDrafts([]);
+    setIncorrectBlankIndexes([]);
+    setAttemptCount(0);
+    setFirstSubmissionCorrect(null);
     setResult("unchecked");
     setTimerSeed((value) => value + 1);
     setPhase("play");
   }
 
   function resetRound() {
-    if (!sequence) return;
-    setAssembly(createAssemblyState(sequence));
+    if (playStyle === "verse-order") {
+      if (!sequence) return;
+      setAssembly(createAssemblyState(sequence));
+    } else {
+      setDrafts(Array(blankTokenIndices.length).fill(""));
+      setIncorrectBlankIndexes([]);
+      setAttemptCount(0);
+      setFirstSubmissionCorrect(null);
+    }
     setResult("unchecked");
     setTimerSeed((value) => value + 1);
   }
 
   function revealAnswer() {
-    if (!sequence || !assembly || result === "revealed") return;
-    setAssembly(revealAssembly(sequence, assembly));
+    if (result === "revealed") return;
+    if (playStyle === "verse-order") {
+      if (!sequence || !assembly) return;
+      setAssembly(revealAssembly(sequence, assembly));
+    }
     setResult("revealed");
   }
 
@@ -186,11 +240,37 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
     setResult(submission.outcome === "correct" ? "correct" : "incorrect");
   }
 
+  function handleMissingDraftChange(blankIndex: number, value: string) {
+    setDrafts((currentDrafts) => currentDrafts.map((draft, index) => index === blankIndex ? value : draft));
+    setIncorrectBlankIndexes((currentIndexes) => currentIndexes.filter((index) => index !== blankIndex));
+  }
+
+  function submitMissingWords() {
+    const submission = evaluateMissingWordsSubmission(
+      missingTokens,
+      blankTokenIndices,
+      drafts,
+      attemptCount,
+      firstSubmissionCorrect,
+    );
+    if (submission.outcome === "incomplete") return;
+    setIncorrectBlankIndexes(submission.incorrectBlankIndexes);
+    setAttemptCount(submission.attemptCount);
+    setFirstSubmissionCorrect(submission.firstSubmissionCorrect);
+    setResult(submission.outcome === "correct" ? "correct" : "incorrect");
+  }
+
   function moveTo(nextIndex: number) {
     if (nextIndex < 0 || nextIndex >= rounds.length) return;
     setIndex(nextIndex);
     setSequence(null);
     setAssembly(null);
+    setMissingTokens([]);
+    setBlankTokenIndices([]);
+    setDrafts([]);
+    setIncorrectBlankIndexes([]);
+    setAttemptCount(0);
+    setFirstSubmissionCorrect(null);
     setResult("unchecked");
     setTimerSeed((value) => value + 1);
   }
@@ -210,8 +290,14 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
     setRounds([]);
     setSequence(null);
     setAssembly(null);
+    setMissingTokens([]);
+    setBlankTokenIndices([]);
+    setDrafts([]);
+    setIncorrectBlankIndexes([]);
     setResult("unchecked");
   }
+
+  const difficulty = playStyle === "missing-words" ? missingWordsDifficulty : verseOrderDifficulty;
 
   if (phase === "setup") {
     return (
@@ -222,12 +308,50 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
         <section className="setup-card">
           <span className="eyebrow">Scripture recall</span>
           <h1>Verse Builder</h1>
-          <p>Put curated KJV verse segments in the correct order.</p>
+          <p>Complete and arrange curated KJV verses to strengthen Scripture recall.</p>
 
           <div className="setup-grid">
             <fieldset className="setup-panel">
+              <legend>Play Style</legend>
+              <div className="option-grid option-grid--two">
+                <button
+                  aria-pressed={playStyle === "missing-words"}
+                  className={`option-button ${playStyle === "missing-words" ? "is-selected" : ""}`}
+                  onClick={() => { setPlayStyle("missing-words"); setCustomError(""); }}
+                  type="button"
+                >
+                  Missing Words <span className="option-button__meta">Recommended</span>
+                </button>
+                <button
+                  aria-pressed={playStyle === "verse-order"}
+                  className={`option-button ${playStyle === "verse-order" ? "is-selected" : ""}`}
+                  onClick={() => { setPlayStyle("verse-order"); setCustomError(""); }}
+                  type="button"
+                >
+                  Verse Order
+                </button>
+              </div>
+              <p className="setup-help">
+                {playStyle === "missing-words" ? "Complete words inside the whole verse." : "Arrange the existing phrase segments."}
+              </p>
+            </fieldset>
+
+            <fieldset className="setup-panel">
               <legend>Time Limit</legend>
-              <p>60 seconds per verse</p>
+              <div className="option-grid option-grid--four">
+                {durationOptions.map((seconds) => (
+                  <button
+                    aria-pressed={duration === seconds}
+                    className={`option-button ${duration === seconds ? "is-selected" : ""}`}
+                    key={seconds}
+                    onClick={() => setDuration(seconds)}
+                    type="button"
+                  >
+                    {seconds}
+                  </button>
+                ))}
+              </div>
+              <p className="setup-help">{duration} seconds per verse</p>
             </fieldset>
 
             <fieldset className="setup-panel">
@@ -238,11 +362,7 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
                     aria-pressed={!customMode && roundCount === count}
                     className={`option-button ${!customMode && roundCount === count ? "is-selected" : ""}`}
                     key={count}
-                    onClick={() => {
-                      setRoundCount(count);
-                      setCustomMode(false);
-                      setCustomError("");
-                    }}
+                    onClick={() => { setRoundCount(count); setCustomMode(false); setCustomError(""); }}
                     type="button"
                   >
                     {count}
@@ -251,11 +371,7 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
                 <button
                   aria-pressed={customMode}
                   className={`option-button ${customMode ? "is-selected" : ""}`}
-                  onClick={() => {
-                    setCustomMode(true);
-                    setCustomDraft(String(roundCount));
-                    setCustomError("");
-                  }}
+                  onClick={() => { setCustomMode(true); setCustomDraft(String(roundCount)); setCustomError(""); }}
                   type="button"
                 >
                   Custom
@@ -272,16 +388,11 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
                     inputMode="numeric"
                     max={availableRecords.length}
                     min="1"
-                    onChange={(event) => {
-                      setCustomDraft(event.target.value);
-                      setCustomError("");
-                    }}
+                    onChange={(event) => { setCustomDraft(event.target.value); setCustomError(""); }}
                     type="number"
                     value={customDraft}
                   />
-                  <small id="verse-builder-custom-total-help">
-                    {customError || `Choose from 1 to ${availableRecords.length}.`}
-                  </small>
+                  <small id="verse-builder-custom-total-help">{customError || `Choose from 1 to ${availableRecords.length}.`}</small>
                 </label>
               )}
             </fieldset>
@@ -293,17 +404,35 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
                 <select
                   aria-label="Difficulty"
                   onChange={(event) => {
-                    setDifficulty(event.target.value as DifficultyFilter);
+                    if (playStyle === "missing-words") setMissingWordsDifficulty(event.target.value as MissingWordsDifficulty);
+                    else setVerseOrderDifficulty(event.target.value as VerseOrderDifficulty);
                     setCustomError("");
                   }}
                   value={difficulty}
                 >
-                  <option value="all">All difficulties</option>
-                  <option value="introductory">Introductory</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
+                  {playStyle === "missing-words" ? (
+                    <>
+                      <option value="introductory">Introductory</option>
+                      <option value="intermediate">Intermediate</option>
+                      <option value="advanced">Advanced</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="all">All difficulties</option>
+                      <option value="introductory">Introductory</option>
+                      <option value="intermediate">Intermediate</option>
+                      <option value="advanced">Advanced</option>
+                    </>
+                  )}
                 </select>
               </label>
+              {playStyle === "missing-words" && (
+                <ul className="setup-help-list">
+                  <li>Introductory — 1 missing word</li>
+                  <li>Intermediate — 2 missing words</li>
+                  <li>Advanced — 3 missing words</li>
+                </ul>
+              )}
             </fieldset>
           </div>
 
@@ -327,19 +456,17 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
           <h1>Verse Builder Complete</h1>
           <p>{rounds.length} {rounds.length === 1 ? "verse" : "verses"} completed.</p>
           <div className="setup-actions">
-            <button className="button button--secondary" onClick={backToSetup} type="button">
-              Change Setup
-            </button>
-            <button className="button button--ghost" onClick={onExit} type="button">
-              Back to Library
-            </button>
+            <button className="button button--secondary" onClick={backToSetup} type="button">Change Setup</button>
+            <button className="button button--ghost" onClick={onExit} type="button">Back to Library</button>
           </div>
         </section>
       </main>
     );
   }
 
-  if (!current || !sequence || !assembly) return null;
+  if (!current) return null;
+  if (playStyle === "verse-order" && (!sequence || !assembly)) return null;
+  if (playStyle === "missing-words" && missingTokens.length === 0) return null;
 
   return (
     <main className="play-shell">
@@ -353,52 +480,46 @@ export default function VerseBuilderGame({ onExit }: VerseBuilderGameProps) {
         timeLeft={timeLeft}
       />
 
-      <VerseBuilderBoard
-        assembly={assembly}
-        canonicalText={current.canonicalText}
-        motion="system"
-        onAssemblyChange={setAssembly}
-        onReset={resetRound}
-        onSubmit={handleSubmit}
-        reference={current.referenceText}
-        result={result}
-        sequence={sequence}
-        showReference={resolved}
-      />
+      {playStyle === "missing-words" ? (
+        <MissingWordsBoard
+          canonicalText={current.canonicalText}
+          tokens={missingTokens}
+          blankTokenIndices={blankTokenIndices}
+          drafts={drafts}
+          incorrectBlankIndexes={incorrectBlankIndexes}
+          firstSubmissionCorrect={firstSubmissionCorrect}
+          onDraftChange={handleMissingDraftChange}
+          onSubmit={submitMissingWords}
+          reference={current.referenceText}
+          result={result}
+        />
+      ) : (
+        <VerseBuilderBoard
+          assembly={assembly!}
+          canonicalText={current.canonicalText}
+          motion="system"
+          onAssemblyChange={setAssembly}
+          onReset={resetRound}
+          onSubmit={handleSubmit}
+          reference={current.referenceText}
+          result={result}
+          sequence={sequence!}
+          showReference={resolved}
+        />
+      )}
 
       <nav aria-label="Host Controls" className="game-controls host-control-dock">
         <div>
-          <button className="button button--ghost" onClick={backToSetup} type="button">
-            Setup
-          </button>
-          <button
-            className="button button--secondary"
-            disabled={index === 0}
-            onClick={() => moveTo(index - 1)}
-            type="button"
-          >
+          <button className="button button--ghost" onClick={backToSetup} type="button">Setup</button>
+          <button className="button button--secondary" disabled={index === 0} onClick={() => moveTo(index - 1)} type="button">
             <ArrowLeft aria-hidden="true" size={17} /> Previous
           </button>
         </div>
         <div>
-          <button className="button button--secondary" onClick={resetRound} type="button">
-            Reset Round
-          </button>
-          <button
-            className="button button--reveal"
-            disabled={result === "revealed"}
-            onClick={revealAnswer}
-            type="button"
-          >
-            Reveal Answer
-          </button>
+          <button className="button button--secondary" onClick={resetRound} type="button">Reset Round</button>
+          <button className="button button--reveal" disabled={result === "revealed"} onClick={revealAnswer} type="button">Reveal Answer</button>
         </div>
-        <button
-          className="button button--primary"
-          disabled={!resolved}
-          onClick={next}
-          type="button"
-        >
+        <button className="button button--primary" disabled={!resolved} onClick={next} type="button">
           {index === rounds.length - 1 ? "Finish" : <>Next <ArrowRight aria-hidden="true" size={17} /></>}
         </button>
       </nav>
