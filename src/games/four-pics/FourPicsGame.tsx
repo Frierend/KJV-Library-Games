@@ -1,3 +1,4 @@
+import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameHeader } from "../../components/GameHeader";
 import { fourPicsPuzzles } from "../../data/fourPicsPuzzles";
@@ -16,7 +17,13 @@ import {
 } from "./fourPicsLogic";
 
 type GamePhase = "setup" | "play" | "complete";
-type Feedback = "idle" | "wrong" | "correct" | "revealed";
+type RoundResult =
+  | "unchecked"
+  | "checking"
+  | "incorrect"
+  | "correct"
+  | "revealed"
+  | "expired";
 
 const durations: readonly TimerDuration[] = [10, 15, 20, 30];
 const roundOptions = [5, 10, 20, 30] as const;
@@ -35,20 +42,28 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
   const [rounds, setRounds] = useState<PreparedPuzzle[]>([]);
   const [index, setIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [feedback, setFeedback] = useState<Feedback>("idle");
+  const [result, setResultState] = useState<RoundResult>("unchecked");
   const [timerSeed, setTimerSeed] = useState(0);
   const [sound, setSound] = useState(true);
   const wrongTimeoutRef = useRef<number | null>(null);
   const wrongAttemptRef = useRef(0);
   const sessionCounterRef = useRef(0);
   const lastSoundSecond = useRef<number | null>(null);
+  const resultRef = useRef<RoundResult>("unchecked");
+  const canAdvanceRef = useRef(false);
+  const navigationLockRef = useRef(false);
+  const countdownRestartPendingRef = useRef(false);
+  const gameplayHeadingRef = useRef<HTMLHeadingElement>(null);
+  const previousPhaseRef = useRef<GamePhase>(phase);
 
   const currentRound = rounds[index];
   const current = currentRound?.puzzle;
   const hintPositions = currentRound?.hintPositions ?? [];
   const letterTiles = currentRound?.letterTiles ?? [];
   const answer = normalizeAnswer(current?.answer ?? "");
-  const roundResolved = feedback === "correct" || feedback === "revealed";
+  const roundResolved = result === "correct" || result === "revealed";
+  const canAdvance = roundResolved;
+  canAdvanceRef.current = canAdvance;
   const customError = customMode ? roundCountError(customDraft) : "";
 
   const { timeLeft, expired } = useCountdown({
@@ -69,9 +84,16 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
     answer,
     hintPositions,
     playerLetters,
-    feedback === "revealed",
+    result === "revealed",
   );
   const enteredAnswer = answerFromSlots(answerSlots);
+
+  useEffect(() => {
+    if (previousPhaseRef.current === "setup" && phase === "play") {
+      gameplayHeadingRef.current?.focus();
+    }
+    previousPhaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     if (!sound || phase !== "play") return;
@@ -84,6 +106,22 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
       playTone(true, 350, 0.35);
     }
   }, [phase, sound, timeLeft]);
+
+  useEffect(() => {
+    if (!expired) {
+      countdownRestartPendingRef.current = false;
+      return;
+    }
+    if (countdownRestartPendingRef.current) return;
+    if (phase === "play" && expired && resultRef.current === "unchecked") {
+      resultRef.current = "expired";
+      setResultState("expired");
+    }
+  }, [expired, phase]);
+
+  useEffect(() => {
+    navigationLockRef.current = false;
+  }, [index, phase]);
 
   useEffect(
     () => () => {
@@ -101,6 +139,11 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
       window.clearTimeout(wrongTimeoutRef.current);
       wrongTimeoutRef.current = null;
     }
+  }
+
+  function setResult(next: RoundResult) {
+    resultRef.current = next;
+    setResultState(next);
   }
 
   function resolveCount() {
@@ -130,11 +173,12 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
     const count = resolveCount();
     if (count === null) return;
     clearWrongTimeout();
+    countdownRestartPendingRef.current = true;
     setRounds(prepared ?? makePuzzleSet(count));
     setPrepared(null);
     setIndex(0);
     setSelectedIds([]);
-    setFeedback("idle");
+    setResult("unchecked");
     setTimerSeed((value) => value + 1);
     setPhase("play");
     lastSoundSecond.current = null;
@@ -142,23 +186,28 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
 
   function resetRound() {
     clearWrongTimeout();
+    countdownRestartPendingRef.current = true;
     setSelectedIds([]);
-    setFeedback("idle");
+    setResult("unchecked");
     setTimerSeed((value) => value + 1);
     lastSoundSecond.current = null;
   }
 
   function moveTo(nextIndex: number) {
     clearWrongTimeout();
+    countdownRestartPendingRef.current = true;
     setIndex(nextIndex);
     setSelectedIds([]);
-    setFeedback("idle");
+    setResult("unchecked");
     setTimerSeed((value) => value + 1);
     lastSoundSecond.current = null;
   }
 
   function addLetter(id: string) {
-    if (roundResolved || feedback === "wrong" || expired) return;
+    if (
+      resultRef.current !== "unchecked" ||
+      expired
+    ) return;
     const tile = letterTiles.find((candidate) => candidate.id === id);
     if (!tile) return;
 
@@ -174,39 +223,42 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
   }
 
   function removeLastLetter() {
-    if (roundResolved || feedback === "wrong" || expired) return;
+    if (resultRef.current !== "unchecked" || expired) return;
     setSelectedIds((currentIds) => removeLastPlayerLetter(currentIds));
   }
 
   function revealAnswer() {
     clearWrongTimeout();
     setSelectedIds([]);
-    setFeedback("revealed");
+    setResult("revealed");
   }
 
   function submitAnswer() {
-    if (!current || roundResolved || feedback === "wrong" || expired) return;
+    if (!current || resultRef.current !== "unchecked" || expired) return;
+    setResult("checking");
     const accepted = [current.answer, ...(current.acceptedAnswers ?? [])].map(
       normalizeAnswer,
     );
     if (accepted.includes(enteredAnswer)) {
       clearWrongTimeout();
-      setFeedback("correct");
+      setResult("correct");
       return;
     }
 
     clearWrongTimeout();
-    setFeedback("wrong");
+    setResult("incorrect");
     const attempt = wrongAttemptRef.current;
     wrongTimeoutRef.current = window.setTimeout(() => {
       if (attempt !== wrongAttemptRef.current) return;
       setSelectedIds([]);
-      setFeedback("idle");
+      setResult("unchecked");
       wrongTimeoutRef.current = null;
     }, 1_200);
   }
 
   function next() {
+    if (!canAdvanceRef.current || navigationLockRef.current) return;
+    navigationLockRef.current = true;
     if (index >= rounds.length - 1) {
       clearWrongTimeout();
       setPhase("complete");
@@ -220,7 +272,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
     setPhase("setup");
     setRounds([]);
     setSelectedIds([]);
-    setFeedback("idle");
+    setResult("unchecked");
   }
 
   useEffect(() => {
@@ -228,8 +280,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
     const handleKey = (event: KeyboardEvent) => {
       if (
         /^[a-z]$/i.test(event.key) &&
-        !roundResolved &&
-        feedback !== "wrong" &&
+        result === "unchecked" &&
         !expired
       ) {
         const tile = letterTiles.find(
@@ -246,7 +297,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
         removeLastLetter();
       } else if (event.key === "Enter") {
         event.preventDefault();
-        if (roundResolved) next();
+        if (canAdvance) next();
         else submitAnswer();
       }
     };
@@ -258,7 +309,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
     return (
       <main className="app-shell setup-screen setup-screen--four-pics">
         <button className="back-link" onClick={onExit}>
-          ← All Games
+          <ArrowLeft aria-hidden="true" size={18} /> Back to Library
         </button>
         <section className="setup-card">
           <span className="eyebrow">Game 02</span>
@@ -267,7 +318,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
 
           <div className="setup-grid">
             <fieldset className="setup-panel">
-              <legend>Countdown</legend>
+              <legend>Time Limit</legend>
               <div className="option-grid option-grid--four">
                 {durations.map((seconds) => (
                   <button
@@ -284,7 +335,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
             </fieldset>
 
             <fieldset className="setup-panel">
-              <legend>Rounds</legend>
+              <legend>Number of Puzzles</legend>
               <div className="option-grid option-grid--rounds">
                 {roundOptions.map((count) => (
                   <button
@@ -316,7 +367,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
               </div>
               {customMode && (
                 <label className="custom-field">
-                  <span>Custom rounds</span>
+                  <span>Custom Number of Puzzles</span>
                   <input
                     aria-describedby="four-pics-custom-help"
                     aria-invalid={Boolean(customError)}
@@ -370,7 +421,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
       <main className="app-shell completion-screen completion-screen--four-pics">
         <section className="completion-card">
           <span className="completion-icon" aria-hidden="true">
-            ✓
+            <CheckCircle2 />
           </span>
           <span className="eyebrow">4 Pics 1 Word</span>
           <h1>Game Complete</h1>
@@ -386,7 +437,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
               New Mixed Game
             </button>
             <button className="button button--ghost" onClick={onExit}>
-              All Games
+              Back to Library
             </button>
           </div>
         </section>
@@ -408,7 +459,15 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
         onExit={onExit}
       />
 
-      <section className="four-pics-board">
+      <section aria-labelledby="quick-four-pics-round-heading" className="four-pics-board">
+        <h1
+          className="sr-only"
+          id="quick-four-pics-round-heading"
+          ref={gameplayHeadingRef}
+          tabIndex={-1}
+        >
+          Round {index + 1}: Find the Bible word
+        </h1>
         <div className="picture-grid" aria-label="Four picture clues">
           {current.clues.map((clue) => (
             <figure
@@ -453,7 +512,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
                 }
                 className={[
                   `word-slot word-slot--${slot.kind}`,
-                  feedback === "correct" ? "is-correct" : "",
+                  result === "correct" ? "is-correct" : "",
                 ].join(" ")}
               >
                 {slot.character}
@@ -473,7 +532,8 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
                   disabled={
                     selected ||
                     roundResolved ||
-                    feedback === "wrong" ||
+                    result === "incorrect" ||
+                    result === "checking" ||
                     expired
                   }
                   onClick={() => addLetter(tile.id)}
@@ -490,19 +550,21 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
               disabled={
                 selectedIds.length === 0 ||
                 roundResolved ||
-                feedback === "wrong" ||
+                result === "incorrect" ||
+                result === "checking" ||
                 expired
               }
               onClick={removeLastLetter}
             >
-              Delete
+              Delete Last Letter
             </button>
             <button
               className="button button--primary"
               disabled={
                 selectedIds.length === 0 ||
                 roundResolved ||
-                feedback === "wrong" ||
+                result === "incorrect" ||
+                result === "checking" ||
                 expired
               }
               onClick={submitAnswer}
@@ -514,23 +576,24 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
           <div
             className={[
               "feedback",
-              feedback === "wrong" ? "feedback--wrong" : "",
-              expired && feedback === "idle" ? "feedback--expired" : "",
-              feedback === "correct" ? "feedback--correct" : "",
-              feedback === "revealed" ? "feedback--revealed" : "",
-              feedback === "idle" && !expired ? "feedback--empty" : "",
+              result === "incorrect" ? "feedback--wrong" : "",
+              result === "expired" ? "feedback--expired" : "",
+              result === "correct" ? "feedback--correct" : "",
+              result === "revealed" ? "feedback--revealed" : "",
+              result === "unchecked" ? "feedback--empty" : "",
             ].join(" ")}
             aria-live="polite"
           >
-            {feedback === "wrong" && <strong>Try again.</strong>}
-            {expired && feedback === "idle" && <strong>Time’s up!</strong>}
-            {feedback === "correct" && (
+            {result === "checking" && <strong>Checking answer…</strong>}
+            {result === "incorrect" && <strong>Try again.</strong>}
+            {result === "expired" && <strong>Time’s up! Reveal the answer to continue.</strong>}
+            {result === "correct" && (
               <>
                 <strong>Correct! {current.answer}</strong>
                 <span>{current.reference}</span>
               </>
             )}
-            {feedback === "revealed" && (
+            {result === "revealed" && (
               <>
                 <strong>Answer: {current.answer}</strong>
                 <span>{current.reference}</span>
@@ -540,7 +603,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
         </div>
       </section>
 
-      <nav className="game-controls" aria-label="Game navigation">
+      <nav className="game-controls host-control-dock" aria-label="Host Controls">
         <div>
           <button className="button button--ghost" onClick={backToSetup}>
             Setup
@@ -550,7 +613,7 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
             disabled={index === 0}
             onClick={() => moveTo(index - 1)}
           >
-            ← Previous
+            <ArrowLeft aria-hidden="true" size={17} /> Previous
           </button>
         </div>
         <div>
@@ -559,14 +622,18 @@ export default function FourPicsGame({ onExit }: FourPicsGameProps) {
           </button>
           <button
             className="button button--reveal"
-            disabled={feedback === "revealed"}
+            disabled={result === "revealed"}
             onClick={revealAnswer}
           >
             Reveal Answer
           </button>
         </div>
-        <button className="button button--primary" onClick={next}>
-          {index === rounds.length - 1 ? "Finish" : "Next →"}
+        <button
+          className="button button--primary"
+          disabled={!canAdvance}
+          onClick={next}
+        >
+          {index === rounds.length - 1 ? "Finish" : <>Next <ArrowRight aria-hidden="true" size={17} /></>}
         </button>
       </nav>
     </main>

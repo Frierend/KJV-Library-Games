@@ -1,5 +1,5 @@
 {
-  "name": "kjv-bible-games",
+  "name": "kjventure",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,13 +8,22 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test --project=chromium --project=firefox --project=webkit",
+    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts --project=chromium --project=firefox",
+    "test:pwa": "playwright test tests/e2e/pwa.spec.ts --config=playwright.pwa.config.ts --project=chromium"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/source-serif-4": "^5.3.0",
+    "lucide-react": "^1.28.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.2",
@@ -23,6 +32,7 @@
     "jsdom": "^26.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
+    "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.10"
   }
 }

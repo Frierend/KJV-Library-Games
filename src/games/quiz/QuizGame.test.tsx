@@ -64,11 +64,47 @@ describe("KJV Bible Quiz", () => {
     render(<QuizGame onExit={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Custom" }));
-    const input = screen.getByRole("spinbutton", { name: /custom total/i });
+    const input = screen.getByRole("spinbutton", { name: /custom number of questions/i });
     fireEvent.change(input, { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: /start quiz/i }));
 
     expect(screen.getByText(/question 1 of 3/i)).toBeInTheDocument();
+  });
+
+  it("moves focus to the active question when play starts", () => {
+    render(<QuizGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "10" }));
+    fireEvent.click(screen.getByRole("button", { name: /start quiz/i }));
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("does not advance before resolution and rejects rapid repeat navigation", () => {
+    render(<QuizGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "10" }));
+    fireEvent.click(screen.getByRole("button", { name: /start quiz/i }));
+
+    const next = screen.getByRole("button", { name: /^next/i });
+    expect(next).toBeDisabled();
+    fireEvent.click(next);
+    expect(screen.getByText(/question 1 of 10/i)).toBeInTheDocument();
+
+    const heading = screen.getByRole("heading", { level: 1 });
+    const question = quizQuestions.find(
+      (candidate) => candidate.question === heading.textContent,
+    );
+    expect(question).toBeDefined();
+    if (!question) return;
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: new RegExp(question.choices[question.correctIndex], "i"),
+      }),
+    );
+    expect(next).toBeEnabled();
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(screen.getByText(/question 2 of 10/i)).toBeInTheDocument();
   });
 
   it("keeps a revealed answer resolved after a pending wrong-answer timeout", () => {

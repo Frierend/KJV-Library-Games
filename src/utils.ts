@@ -1,3 +1,5 @@
+import { audioCues } from "./services/audio";
+
 export function shuffle<T>(
   items: readonly T[],
   random: () => number = Math.random,
@@ -15,45 +17,100 @@ export function playTone(
   frequency = 760,
   duration = 0.1,
 ) {
-  if (!enabled) return;
+  audioCues.play(enabled, frequency, duration);
+}
+
+export type FullscreenAction = "enter" | "exit";
+
+export type FullscreenOutcome =
+  | { action: FullscreenAction; status: "success" }
+  | { action: FullscreenAction; status: "rejected" | "unsupported" };
+
+export type FullscreenFailure = Exclude<FullscreenOutcome, { status: "success" }>;
+
+export function isFullscreenFailure(value: unknown): value is FullscreenFailure {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<FullscreenFailure>;
+  return (
+    (candidate.action === "enter" || candidate.action === "exit") &&
+    (candidate.status === "rejected" || candidate.status === "unsupported")
+  );
+}
+
+export function isFullscreenSupported() {
+  return Boolean(
+    typeof document !== "undefined" &&
+      document.documentElement &&
+      typeof document.documentElement.requestFullscreen === "function" &&
+      typeof document.exitFullscreen === "function",
+  );
+}
+
+export async function requestFullscreen(): Promise<FullscreenOutcome> {
+  const element = document.documentElement;
+  if (!element || typeof element.requestFullscreen !== "function") {
+    return { action: "enter", status: "unsupported" };
+  }
+
   try {
-    const AudioContextClass =
-      window.AudioContext ??
-      (
-        window as typeof window & {
-          webkitAudioContext?: typeof AudioContext;
-        }
-      ).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const context = new AudioContextClass();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.07, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(
-      0.001,
-      context.currentTime + duration,
-    );
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + duration);
-    oscillator.addEventListener("ended", () => void context.close());
+    await element.requestFullscreen();
+    return { action: "enter", status: "success" };
   } catch {
-    // Audio is optional and may be blocked by the browser.
+    return { action: "enter", status: "rejected" };
   }
 }
 
-export function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    void document.documentElement.requestFullscreen?.().catch(() => undefined);
-  } else {
-    void document.exitFullscreen?.().catch(() => undefined);
+export async function exitFullscreen(): Promise<FullscreenOutcome> {
+  if (typeof document.exitFullscreen !== "function") {
+    return { action: "exit", status: "unsupported" };
   }
+
+  try {
+    await document.exitFullscreen();
+    return { action: "exit", status: "success" };
+  } catch {
+    return { action: "exit", status: "rejected" };
+  }
+}
+
+export function fullscreenFailureMessage(failure: FullscreenFailure) {
+  if (failure.status === "unsupported") {
+    return "Fullscreen is unavailable in this browser.";
+  }
+  return failure.action === "enter"
+    ? "Fullscreen could not be entered. Try again."
+    : "Fullscreen could not be exited. Try again.";
+}
+
+export async function toggleFullscreen(): Promise<FullscreenOutcome> {
+  return document.fullscreenElement ? exitFullscreen() : requestFullscreen();
+}
+
+function wholeTimerSeconds(seconds: number) {
+  return Math.max(0, Math.ceil(Number.isFinite(seconds) ? seconds : 0));
 }
 
 export function formatTimer(seconds: number) {
-  return `0:${String(seconds).padStart(2, "0")}`;
+  const totalSeconds = wholeTimerSeconds(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+export function formatTimerAnnouncement(seconds: number) {
+  const totalSeconds = wholeTimerSeconds(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  const parts: string[] = [];
+
+  if (minutes > 0) {
+    parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`);
+  }
+  if (remainingSeconds > 0 || minutes === 0) {
+    parts.push(`${remainingSeconds} ${remainingSeconds === 1 ? "second" : "seconds"}`);
+  }
+
+  return `${parts.join(" ")} remaining`;
 }
 
 export function normalizeAnswer(value: string) {

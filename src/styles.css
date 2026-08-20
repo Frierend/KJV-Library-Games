@@ -84,6 +84,10 @@ input:focus-visible {
   outline-offset: 3px;
 }
 
+main h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
@@ -219,7 +223,7 @@ button:disabled {
 
 .app-brand h1 {
   margin: 5px 0 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
   font-size: clamp(2.2rem, 4.5vw, 4.8rem);
   letter-spacing: -0.04em;
   line-height: 0.98;
@@ -274,6 +278,7 @@ button:disabled {
 }
 
 .quiz-preview,
+.verse-builder-preview,
 .pics-preview {
   display: grid;
   gap: 12px;
@@ -284,7 +289,15 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.quiz-preview span {
+.verse-builder-preview {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 360px);
+  box-sizing: border-box;
+  padding: 0 8px;
+}
+
+.quiz-preview span,
+.verse-builder-preview span {
   display: grid;
   place-items: center;
   min-height: 68px;
@@ -295,6 +308,13 @@ button:disabled {
   font-size: 1.6rem;
   font-weight: 900;
   box-shadow: var(--shadow-sm);
+}
+
+.verse-builder-preview span {
+  min-width: 0;
+  padding: 0 5px;
+  font-size: clamp(0.76rem, 1.2vw, 1.1rem);
+  line-height: 1.1;
 }
 
 .pics-preview {
@@ -319,7 +339,7 @@ button:disabled {
 
 .game-card__body h2 {
   margin: 7px 0 10px;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
   font-size: clamp(1.8rem, 2.8vw, 2.8rem);
 }
 
@@ -353,6 +373,19 @@ button:disabled {
     max(clamp(16px, 4vw, 56px), env(safe-area-inset-right))
     max(clamp(22px, 4vw, 56px), env(safe-area-inset-bottom))
     max(clamp(16px, 4vw, 56px), env(safe-area-inset-left));
+}
+
+.setup-screen {
+  grid-template-columns: minmax(0, 920px);
+  align-content: center;
+  justify-content: center;
+  gap: 12px;
+  place-items: initial;
+}
+
+.setup-screen .back-link {
+  position: static;
+  justify-self: start;
 }
 
 .setup-screen--four-pics,
@@ -402,7 +435,7 @@ button:disabled {
 .setup-card h1,
 .completion-card h1 {
   margin: 8px 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
   font-size: clamp(2.2rem, 5vw, 4.6rem);
   letter-spacing: -0.04em;
   line-height: 1;
@@ -659,6 +692,24 @@ button:disabled {
   gap: 9px;
 }
 
+.fullscreen-feedback {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #dfbd6d;
+  border-radius: 12px;
+  background: var(--warning-surface);
+  color: #744306;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.fullscreen-feedback svg { flex: 0 0 auto; }
+
 .progress-label {
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -718,6 +769,8 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  min-width: 0;
+  overflow: auto;
   min-height: 56px;
   padding: 11px 18px;
   border: 1px solid var(--border);
@@ -726,10 +779,18 @@ button:disabled {
   color: var(--text);
 }
 
+.feedback strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .feedback span {
-  flex: 0 0 auto;
+  flex: 1 1 16rem;
+  min-width: 0;
   color: inherit;
   font-weight: 800;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .feedback--empty {
@@ -782,7 +843,7 @@ button:disabled {
 
 .question-number {
   color: var(--gold-deep);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
   font-size: clamp(2.8rem, 5.3vw, 5.7rem);
   font-weight: 700;
   line-height: 0.88;
@@ -1593,6 +1654,11 @@ button:disabled {
     gap: 5px;
     min-height: 50px;
     padding: 10px 13px;
+  }
+
+  .feedback span {
+    width: 100%;
+    text-align: left;
   }
 
   .game-controls {

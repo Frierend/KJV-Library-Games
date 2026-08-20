@@ -7,7 +7,28 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fourPicsPuzzles } from "../../data/fourPicsPuzzles";
+import { normalizeAnswer } from "../../utils";
 import FourPicsGame from "./FourPicsGame";
+
+function fillCorrectAnswer(container: HTMLElement) {
+  const firstClueLabel = screen.getAllByRole("img")[0].getAttribute("aria-label");
+  const puzzle = fourPicsPuzzles.find(
+    (candidate) => candidate.clues[0].label === firstClueLabel,
+  );
+  expect(puzzle).toBeDefined();
+  if (!puzzle) return;
+
+  const slots = [...container.querySelectorAll(".word-slot")];
+  [...normalizeAnswer(puzzle.answer)].forEach((character, index) => {
+    if (slots[index].classList.contains("word-slot--hint")) return;
+    const tile = screen
+      .getAllByRole("button", { name: new RegExp(`^Letter ${character}`) })
+      .find((candidate) => !(candidate as HTMLButtonElement).disabled);
+    expect(tile).toBeDefined();
+    if (tile) fireEvent.click(tile);
+  });
+}
 
 describe("4 Pics 1 Word", () => {
   beforeEach(() => {
@@ -30,6 +51,18 @@ describe("4 Pics 1 Word", () => {
       expect(clue.getAttribute("aria-label")).not.toBe("");
       expect(clue).not.toHaveTextContent(clue.getAttribute("aria-label") ?? "");
     }
+  });
+
+  it("moves focus to the active round heading when play starts", () => {
+    render(<FourPicsGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /start game/i }));
+
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: /round 1: find the bible word/i,
+    });
+    expect(heading).toHaveFocus();
+    expect(heading).toHaveAttribute("tabindex", "-1");
   });
 
   it("preserves locked hints and the letter bank when Reset Round is used", () => {
@@ -100,6 +133,8 @@ describe("4 Pics 1 Word", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /^Letter [A-Z]$/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: /check answer/i }));
     expect(screen.getByText("Try again.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+    expect(screen.getByText(/round 1 of 5/i)).toBeInTheDocument();
 
     await waitFor(
       () => {
@@ -134,7 +169,7 @@ describe("4 Pics 1 Word", () => {
     ).toBe(true);
   });
 
-  it("does not carry player letters through Next or Previous", () => {
+  it("does not carry player letters through resolved Next or Previous", () => {
     const { container } = render(<FourPicsGame onExit={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /start game/i }));
     const firstHints = [...container.querySelectorAll(".word-slot--hint")].map(
@@ -143,6 +178,8 @@ describe("4 Pics 1 Word", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: /^Letter [A-Z]$/ })[0]);
     expect(container.querySelectorAll(".word-slot--player")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
     expect(screen.getByText(/round 2 of 5/i)).toBeInTheDocument();
     expect(container.querySelectorAll(".word-slot--player")).toHaveLength(0);
@@ -157,9 +194,78 @@ describe("4 Pics 1 Word", () => {
     ).toEqual(firstHints);
   });
 
+  it("requires Check Answer even when every entered letter is correct", () => {
+    const { container } = render(<FourPicsGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /start game/i }));
+
+    fillCorrectAnswer(container);
+
+    const next = screen.getByRole("button", { name: /next/i });
+    expect(next).toBeDisabled();
+    expect(screen.queryByText(/correct!/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /check answer/i }));
+    expect(screen.getByText(/correct!/i)).toBeInTheDocument();
+    expect(next).toBeEnabled();
+
+    fireEvent.click(next);
+    expect(screen.getByText(/round 2 of 5/i)).toBeInTheDocument();
+  });
+
+  it("requires Reveal Answer after timer expiration before Next unlocks", () => {
+    vi.useFakeTimers();
+    render(<FourPicsGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /start game/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(20_500);
+    });
+
+    expect(screen.getByText(/time’s up! reveal the answer/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+    expect(screen.getByRole("button", { name: /next/i })).toBeEnabled();
+  });
+
+  it("starts a fresh countdown when an expired round is reset", () => {
+    vi.useFakeTimers();
+    render(<FourPicsGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /start game/i }));
+
+    act(() => {
+      vi.advanceTimersByTime(20_500);
+    });
+    expect(screen.getByText(/time’s up! reveal the answer/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /reset round/i }));
+    expect(screen.queryByText(/time’s up!/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("timer")).toHaveTextContent("0:20");
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(screen.getByRole("timer")).toHaveTextContent("0:19");
+    expect(screen.getAllByRole("button", { name: /^Letter [A-Z]$/ })[0]).toBeEnabled();
+  });
+
+  it("defensively rejects rapid forward navigation", () => {
+    render(<FourPicsGame onExit={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /start game/i }));
+    fireEvent.click(screen.getByRole("button", { name: /reveal answer/i }));
+
+    const next = screen.getByRole("button", { name: /next/i });
+    fireEvent.click(next);
+    fireEvent.click(next);
+    fireEvent.keyDown(window, { key: "Enter" });
+
+    expect(screen.getByText(/round 2 of 5/i)).toBeInTheDocument();
+    expect(screen.queryByText(/round 3 of 5/i)).not.toBeInTheDocument();
+  });
+
   it("starts a 30-round game", () => {
     render(<FourPicsGame onExit={vi.fn()} />);
-    const rounds = screen.getByRole("group", { name: "Rounds" });
+    const rounds = screen.getByRole("group", { name: "Number of Puzzles" });
     fireEvent.click(within(rounds).getByRole("button", { name: "30" }));
     fireEvent.click(screen.getByRole("button", { name: /start game/i }));
 
@@ -172,7 +278,7 @@ describe("4 Pics 1 Word", () => {
       render(<FourPicsGame onExit={vi.fn()} />);
       fireEvent.click(screen.getByRole("button", { name: "Custom" }));
       fireEvent.change(
-        screen.getByRole("spinbutton", { name: /custom rounds/i }),
+        screen.getByRole("spinbutton", { name: /custom number of puzzles/i }),
         { target: { value } },
       );
 

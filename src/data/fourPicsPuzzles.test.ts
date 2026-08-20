@@ -46,6 +46,37 @@ describe("4 Pics puzzle data", () => {
     }
   });
 
+  it("keeps every possible hint-position letter bank complete", () => {
+    for (const puzzle of fourPicsPuzzles) {
+      const answerLength = normalizeAnswer(puzzle.answer).length;
+      const hintSets = Array.from({ length: answerLength }, (_, first) =>
+        answerLength < 6
+          ? [[first]]
+          : Array.from({ length: answerLength }, (_, second) => second)
+              .filter((second) => second !== first)
+              .map((second) => [first, second].sort((left, right) => left - right)),
+      ).flat();
+      const uniqueHintSets = [
+        ...new Map(hintSets.map((hints) => [hints.join(","), hints])).values(),
+      ];
+
+      for (const hints of uniqueHintSets) {
+        const tiles = createLetterTiles(puzzle, hints, "all-hint-positions", () => 0.5);
+        const available = tiles.map((tile) => tile.character);
+        const required = requiredAnswerLetters(puzzle.answer, hints);
+        expect(tiles).toHaveLength(required.length + puzzle.extraLetters.length);
+        for (const character of required) {
+          const occurrence = available.indexOf(character);
+          expect(
+            occurrence,
+            `${puzzle.answer} with hints ${hints.join(",")} is missing ${character}`,
+          ).toBeGreaterThanOrEqual(0);
+          available.splice(occurrence, 1);
+        }
+      }
+    }
+  });
+
   it("samples a 30-round session without repeating a puzzle", () => {
     const rounds = preparePuzzleSession(
       fourPicsPuzzles,
