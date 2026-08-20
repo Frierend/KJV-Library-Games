@@ -6,6 +6,7 @@ import type {
   TeamConfig,
 } from "./types";
 import type { GameId } from "../games/types";
+import { DEFAULT_VERSE_BUILDER_SETTINGS } from "../games/verse-builder/verseBuilderTypes";
 
 const colors: TeamConfig["color"][] = [
   "blue",
@@ -44,6 +45,7 @@ export function createPlaylistItem(
     order: "random",
     timerSeconds: gameId === "quiz" ? 20 : gameId === "verse-builder" ? 60 : 30,
     expiryBehavior: "require-reveal",
+    ...(gameId === "verse-builder" ? { verseBuilder: { ...DEFAULT_VERSE_BUILDER_SETTINGS } } : {}),
     ...overrides,
   };
 }

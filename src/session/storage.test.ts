@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_VERSE_BUILDER_SETTINGS } from "../games/verse-builder/verseBuilderTypes";
 import { createActiveSession } from "./createSession";
-import { defaultSessionConfig } from "./presets";
+import { createPlaylistItem, defaultSessionConfig } from "./presets";
 import { sessionReducer } from "./reducer";
 import {
   ACTIVE_SESSION_KEY,
@@ -67,6 +68,36 @@ describe("session persistence", () => {
       arrangedSegmentIds: ["two", "one", "three"],
       attemptCount: 1,
       firstSubmissionCorrect: false,
+    });
+  });
+
+  it("preserves Missing Words drafts and blank metadata while clearing transient feedback", () => {
+    const session = createActiveSession({
+      ...defaultSessionConfig,
+      playlist: [createPlaylistItem("verse-builder", 0, { verseBuilder: { ...DEFAULT_VERSE_BUILDER_SETTINGS } })],
+    });
+    const round = session.preparedRounds[0];
+    expect(round.gameId).toBe("verse-builder");
+    if (round.gameId !== "verse-builder" || round.playStyle !== "missing-words") {
+      throw new Error("Missing Words preparation fixture is missing");
+    }
+    const blankCount = round.blankTokenIndices.length;
+    let changed = sessionReducer(session, { type: "VERSE_MISSING_WORD_CHANGE", blankIndex: 0, value: "draft" });
+    changed = sessionReducer(changed, {
+      type: "VERSE_MISSING_WORD_SUBMIT",
+      incorrectBlankIndexes: [0],
+    });
+    saveActiveSession(changed);
+
+    const restored = readStoredSession().session;
+    expect(restored?.roundStates[round.id]).toMatchObject({
+      result: "unchecked",
+      drafts: ["draft", ...Array(blankCount - 1).fill("")],
+      incorrectBlankIndexes: [0],
+    });
+    expect(restored?.preparedRounds[0]).toMatchObject({
+      playStyle: "missing-words",
+      blankTokenIndices: round.blankTokenIndices,
     });
   });
 

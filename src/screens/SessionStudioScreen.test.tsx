@@ -84,6 +84,26 @@ describe("Session Studio scoring modes", () => {
     expect(stored.config.playlist[0].timerSeconds).toBe(300);
   });
 
+  it("stores Verse Builder play style and both difficulty choices", () => {
+    renderStudio();
+    fireEvent.click(screen.getByRole("button", { name: "Verse Builder" }));
+
+    expect(screen.getByRole("button", { name: "Missing Words" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Verse Order" }));
+    fireEvent.change(screen.getByLabelText("Verse Builder difficulty"), { target: { value: "advanced" } });
+    fireEvent.click(screen.getByRole("button", { name: "Missing Words" }));
+    fireEvent.change(screen.getByLabelText("Verse Builder difficulty"), { target: { value: "intermediate" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Start Session$/ }));
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    const verseBuilderItem = stored.config.playlist.find((item: { gameId: string }) => item.gameId === "verse-builder");
+    expect(verseBuilderItem.verseBuilder).toEqual({
+      playStyle: "missing-words",
+      missingWordsDifficulty: "intermediate",
+      verseOrderDifficulty: "advanced",
+    });
+  });
+
   it("keeps Fellowship Mode as the default and presents the required terminology", () => {
     renderStudio();
     expect(screen.getByRole("button", { name: "Fellowship Mode Classic host-led play without scores." })).toHaveAttribute("aria-pressed", "true");

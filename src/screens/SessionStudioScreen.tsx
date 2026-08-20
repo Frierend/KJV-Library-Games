@@ -18,6 +18,12 @@ import { InfoTip } from "../components/ui/InfoTip";
 import { StatusNotice } from "../components/ui/StatusNotice";
 import { gameRegistry } from "../games/registry";
 import type { GameId } from "../games/types";
+import {
+  LEGACY_VERSE_BUILDER_SETTINGS,
+  resolveVerseBuilderSettings,
+  type MissingWordsDifficulty,
+  type VerseOrderDifficulty,
+} from "../games/verse-builder/verseBuilderTypes";
 import { createId } from "../session/createSession";
 import { useSession } from "../session/controller";
 import {
@@ -246,6 +252,13 @@ export function SessionStudioScreen() {
     }));
   }
 
+  function updateVerseBuilderSettings(id: string, update: Partial<NonNullable<GamePlaylistItem["verseBuilder"]>>) {
+    const item = config.playlist.find((candidate) => candidate.id === id);
+    if (!item || item.gameId !== "verse-builder") return;
+    const current = resolveVerseBuilderSettings(item.verseBuilder);
+    updatePlaylistItem(id, { verseBuilder: { ...current, ...update } });
+  }
+
   function movePlaylistItem(index: number, direction: -1 | 1) {
     setConfig((current) => {
       const target = index + direction;
@@ -451,6 +464,9 @@ export function SessionStudioScreen() {
                 const timerError = numericFieldErrors[item.id]?.timerSeconds ?? "";
                 const roundCountHelpId = `${item.id}-round-count-help`;
                 const timerHelpId = `${item.id}-timer-help`;
+                const verseBuilderSettings = item.gameId === "verse-builder"
+                  ? resolveVerseBuilderSettings(item.verseBuilder ?? LEGACY_VERSE_BUILDER_SETTINGS)
+                  : null;
                 return (
                   <article className="playlist-item" key={item.id}>
                     <div className="playlist-item__header">
@@ -498,7 +514,61 @@ export function SessionStudioScreen() {
                       </label>
                       <label className="studio-check"><input checked={item.timerSeconds === null} onChange={(event) => { updatePlaylistItem(item.id, { timerSeconds: event.target.checked ? null : 20 }); clearPlaylistDraft(item.id, "timerSeconds"); }} type="checkbox" /><span>No Time Limit</span></label>
                       <div className="studio-field"><span><label htmlFor={`${item.id}-expiry`}>When Time Expires</label><InfoTip label="When Time Expires">Require reveal keeps the current question or puzzle in place. Allow Skipping bypasses it, while Auto-reveal shows the answer automatically.</InfoTip></span><select disabled={item.timerSeconds === null} id={`${item.id}-expiry`} onChange={(event) => updatePlaylistItem(item.id, { expiryBehavior: event.target.value as GamePlaylistItem["expiryBehavior"] })} value={item.expiryBehavior}><option value="require-reveal">Require reveal</option><option value="allow-skip">Allow Skipping</option><option value="auto-reveal">Auto-reveal</option></select></div>
-                      <div className="studio-field"><span><label htmlFor={`${item.id}-difficulty`}>Difficulty</label><InfoTip label="Difficulty">Difficulty filters are unavailable because the current library has no difficulty metadata yet.</InfoTip></span><select disabled id={`${item.id}-difficulty`}><option>Difficulty not assigned</option></select></div>
+                      {verseBuilderSettings ? (
+                        <>
+                          <fieldset className="studio-fieldset studio-fieldset--compact">
+                            <legend>Play Style</legend>
+                            <div className="option-grid option-grid--two">
+                              <button
+                                aria-label="Missing Words"
+                                aria-pressed={verseBuilderSettings.playStyle === "missing-words"}
+                                className={`option-button ${verseBuilderSettings.playStyle === "missing-words" ? "is-selected" : ""}`}
+                                onClick={() => updateVerseBuilderSettings(item.id, { playStyle: "missing-words" })}
+                                type="button"
+                              >
+                                Missing Words <small aria-hidden="true">Recommended</small>
+                              </button>
+                              <button
+                                aria-label="Verse Order"
+                                aria-pressed={verseBuilderSettings.playStyle === "verse-order"}
+                                className={`option-button ${verseBuilderSettings.playStyle === "verse-order" ? "is-selected" : ""}`}
+                                onClick={() => updateVerseBuilderSettings(item.id, { playStyle: "verse-order" })}
+                                type="button"
+                              >
+                                Verse Order
+                              </button>
+                            </div>
+                          </fieldset>
+                          <div className="studio-field">
+                            <span><label htmlFor={`${item.id}-difficulty`}>Difficulty</label><InfoTip label="Difficulty">Missing Words difficulty changes the number of blanks. Verse Order difficulty filters the reviewed assembly records.</InfoTip></span>
+                            <select
+                              aria-label="Verse Builder difficulty"
+                              id={`${item.id}-difficulty`}
+                              onChange={(event) => verseBuilderSettings.playStyle === "missing-words"
+                                ? updateVerseBuilderSettings(item.id, { missingWordsDifficulty: event.target.value as MissingWordsDifficulty })
+                                : updateVerseBuilderSettings(item.id, { verseOrderDifficulty: event.target.value as VerseOrderDifficulty })}
+                              value={verseBuilderSettings.playStyle === "missing-words" ? verseBuilderSettings.missingWordsDifficulty : verseBuilderSettings.verseOrderDifficulty}
+                            >
+                              {verseBuilderSettings.playStyle === "missing-words" ? (
+                                <>
+                                  <option value="introductory">Introductory — 1 missing word</option>
+                                  <option value="intermediate">Intermediate — 2 missing words</option>
+                                  <option value="advanced">Advanced — 3 missing words</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="all">All difficulties</option>
+                                  <option value="introductory">Introductory</option>
+                                  <option value="intermediate">Intermediate</option>
+                                  <option value="advanced">Advanced</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="studio-field"><span><label htmlFor={`${item.id}-difficulty`}>Difficulty</label><InfoTip label="Difficulty">Difficulty filters are unavailable because the current library has no difficulty metadata yet.</InfoTip></span><select disabled id={`${item.id}-difficulty`}><option>Difficulty not assigned</option></select></div>
+                      )}
                     </div>
                   </article>
                 );

@@ -5,6 +5,7 @@ import { createPlaylistItem } from "../../session/presets";
 import { isSessionConfig } from "../../session/storage";
 import { defaultSessionConfig } from "../../session/presets";
 import { prepareVerseBuilderRounds } from "./verseBuilderAdapter";
+import { DEFAULT_VERSE_BUILDER_SETTINGS, LEGACY_VERSE_BUILDER_SETTINGS } from "./verseBuilderTypes";
 
 describe("Verse Builder hosted adapter", () => {
   it("prepares source-order rounds with persisted canonical and shuffled IDs", () => {
@@ -18,6 +19,7 @@ describe("Verse Builder hosted adapter", () => {
       canonicalSegmentIds: record.segments.map((segment) => segment.id),
       shuffledSegmentIds: expect.arrayContaining(record.segments.map((segment) => segment.id)),
     });
+    if (rounds[0]?.playStyle === "missing-words") throw new Error("Verse Order preparation fixture is missing");
     expect(rounds[0].shuffledSegmentIds).toHaveLength(record.segments.length);
   });
 
@@ -42,7 +44,21 @@ describe("Verse Builder hosted adapter", () => {
       gameId: "verse-builder",
       roundCount: 5,
       timerSeconds: 60,
+      verseBuilder: DEFAULT_VERSE_BUILDER_SETTINGS,
     });
     expect(isSessionConfig({ ...defaultSessionConfig, playlist: [item] })).toBe(true);
+  });
+
+  it("prepares persisted blanks or the existing Sequence fields by style", () => {
+    const missing = prepareVerseBuilderRounds(1, "source", DEFAULT_VERSE_BUILDER_SETTINGS, createSeededRandom("missing"));
+    expect(missing[0]).toMatchObject({ gameId: "verse-builder", playStyle: "missing-words", difficulty: "introductory" });
+    if (missing[0]?.playStyle !== "missing-words") throw new Error("Missing Words preparation fixture is missing");
+    expect(missing[0]).toHaveProperty("blankTokenIndices");
+    expect(missing[0].blankTokenIndices).toHaveLength(1);
+
+    const order = prepareVerseBuilderRounds(1, "source", LEGACY_VERSE_BUILDER_SETTINGS, createSeededRandom("order"));
+    expect(order[0]).toMatchObject({ gameId: "verse-builder", canonicalSegmentIds: expect.any(Array), shuffledSegmentIds: expect.any(Array) });
+    if (order[0]?.playStyle === "missing-words") throw new Error("Verse Order preparation fixture is missing");
+    expect("blankTokenIndices" in order[0]).toBe(false);
   });
 });

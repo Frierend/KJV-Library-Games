@@ -10,6 +10,7 @@ import {
   type PreparedRound,
   type SessionConfig,
 } from "./types";
+import { resolveVerseBuilderSettings } from "../games/verse-builder/verseBuilderTypes";
 
 export function createId(prefix: string) {
   const uuid = globalThis.crypto?.randomUUID?.();
@@ -50,7 +51,7 @@ function preparePlaylistItem(
   }
 
   if (item.gameId === "verse-builder") {
-    return prepareVerseBuilderRounds(item.roundCount, item.order, random).map(
+    return prepareVerseBuilderRounds(item.roundCount, item.order, resolveVerseBuilderSettings(item.verseBuilder), random).map(
       (prepared, index) => ({
         ...prepared,
         id: `${item.id}-${index + 1}-${prepared.contentId}`,
@@ -89,13 +90,24 @@ export function initialRoundState(round: PreparedRound): PersistedRoundState {
     };
   }
   if (round.gameId === "verse-builder") {
-    return {
-      gameId: "verse-builder",
-      result: "unchecked",
-      arrangedSegmentIds: [],
-      attemptCount: 0,
-      firstSubmissionCorrect: null,
-    };
+    return round.playStyle === "missing-words"
+      ? {
+          gameId: "verse-builder",
+          playStyle: "missing-words",
+          result: "unchecked",
+          drafts: Array(round.blankTokenIndices.length).fill(""),
+          incorrectBlankIndexes: [],
+          attemptCount: 0,
+          firstSubmissionCorrect: null,
+        }
+      : {
+          gameId: "verse-builder",
+          playStyle: "verse-order" as const,
+          result: "unchecked",
+          arrangedSegmentIds: [],
+          attemptCount: 0,
+          firstSubmissionCorrect: null,
+        };
   }
   return {
     gameId: "four-pics",

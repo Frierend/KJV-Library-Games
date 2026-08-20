@@ -12,6 +12,7 @@ import {
   type TeamConfig,
   type UserPreferences,
 } from "./types";
+import { resolveVerseBuilderSettings } from "../games/verse-builder/verseBuilderTypes";
 
 export const ACTIVE_SESSION_KEY = "kjventure.session.v1";
 export const PRESETS_KEY = "kjventure.presets.v1";
@@ -59,14 +60,22 @@ function isPlayerConfig(value: unknown): value is PlayerConfig {
 function isPlaylistItem(value: unknown): value is GamePlaylistItem {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<GamePlaylistItem>;
-  return typeof candidate.id === "string" &&
+  const validBase = typeof candidate.id === "string" &&
     (candidate.gameId === "quiz" || candidate.gameId === "four-pics" || candidate.gameId === "verse-builder") &&
     candidate.contentPackId === "kjventure-core" &&
     Number.isInteger(candidate.roundCount) && Number(candidate.roundCount) > 0 &&
     (candidate.order === "random" || candidate.order === "source") &&
     (candidate.timerSeconds === null ||
       (Number.isInteger(candidate.timerSeconds) && Number(candidate.timerSeconds) >= 5)) &&
-    ["require-reveal", "allow-skip", "auto-reveal"].includes(candidate.expiryBehavior ?? "");
+     ["require-reveal", "allow-skip", "auto-reveal"].includes(candidate.expiryBehavior ?? "");
+  if (!validBase) return false;
+  if (candidate.gameId !== "verse-builder" || candidate.verseBuilder === undefined) return true;
+  try {
+    resolveVerseBuilderSettings(candidate.verseBuilder);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function isSessionConfig(value: unknown): value is SessionConfig {
