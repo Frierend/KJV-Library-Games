@@ -1,5 +1,6 @@
 import type { LetterTile } from "../games/four-pics/fourPicsLogic";
 import type { GameId } from "../games/types";
+import type { VerseBuilderSettings, MissingWordsDifficulty } from "../games/verse-builder/verseBuilderTypes";
 
 export const SESSION_SCHEMA_VERSION = 3;
 
@@ -25,6 +26,7 @@ export interface GamePlaylistItem {
   order: QuestionOrder;
   timerSeconds: number | null;
   expiryBehavior: ExpiryBehavior;
+  verseBuilder?: VerseBuilderSettings;
 }
 
 export interface TeamConfig {
@@ -69,11 +71,21 @@ export interface PreparedFourPicsRound extends PreparedRoundBase {
   letterTiles: readonly LetterTile[];
 }
 
-export interface PreparedVerseBuilderRound extends PreparedRoundBase {
+export interface PreparedVerseOrderRound extends PreparedRoundBase {
   gameId: "verse-builder";
+  playStyle?: "verse-order";
   canonicalSegmentIds: readonly string[];
   shuffledSegmentIds: readonly string[];
 }
+
+export interface PreparedMissingWordsRound extends PreparedRoundBase {
+  gameId: "verse-builder";
+  playStyle: "missing-words";
+  difficulty: MissingWordsDifficulty;
+  blankTokenIndices: readonly number[];
+}
+
+export type PreparedVerseBuilderRound = PreparedVerseOrderRound | PreparedMissingWordsRound;
 
 export type PreparedRound =
   | PreparedQuizRound
@@ -97,12 +109,24 @@ export interface FourPicsRoundState extends RoundStateBase {
   revealedHintPositions: number[];
 }
 
-export interface VerseBuilderRoundState extends RoundStateBase {
+export interface VerseOrderRoundState extends RoundStateBase {
   gameId: "verse-builder";
+  playStyle?: "verse-order";
   arrangedSegmentIds: string[];
   attemptCount: number;
   firstSubmissionCorrect: boolean | null;
 }
+
+export interface MissingWordsRoundState extends RoundStateBase {
+  gameId: "verse-builder";
+  playStyle: "missing-words";
+  drafts: string[];
+  incorrectBlankIndexes: number[];
+  attemptCount: number;
+  firstSubmissionCorrect: boolean | null;
+}
+
+export type VerseBuilderRoundState = VerseOrderRoundState | MissingWordsRoundState;
 
 export type PersistedRoundState =
   | QuizRoundState
