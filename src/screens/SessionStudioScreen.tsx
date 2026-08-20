@@ -64,6 +64,35 @@ function contentCountLabel(gameId: GamePlaylistItem["gameId"], count: number) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+type NumericDraftField = "roundCount" | "timerSeconds";
+type PlaylistDrafts = Record<
+  string,
+  Partial<Record<NumericDraftField, string>>
+>;
+type PlaylistNumericErrors = Record<
+  string,
+  Partial<Record<NumericDraftField, string>>
+>;
+
+function maxRoundsFor(gameId: GameId) {
+  return gameId === "quiz" ? 100 : gameId === "four-pics" ? 30 : 20;
+}
+
+function numericFieldError(value: string, min: number, max: number) {
+  const trimmed = value.trim();
+  const parsed = Number(trimmed);
+  if (
+    trimmed === "" ||
+    !/^\d+$/.test(trimmed) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed < min ||
+    parsed > max
+  ) {
+    return `Enter a whole number from ${min} to ${max}.`;
+  }
+  return "";
+}
+
 const modeOptions: readonly {
   mode: SessionMode;
   label: string;
@@ -97,6 +126,7 @@ export function SessionStudioScreen() {
       ...preferences,
     }),
   );
+  const [playlistDrafts, setPlaylistDrafts] = useState<PlaylistDrafts>({});
   const [presetName, setPresetName] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const [pendingModeChange, setPendingModeChange] = useState<PendingModeChange | null>(null);
@@ -109,10 +139,87 @@ export function SessionStudioScreen() {
     return "";
   }, [config.mode, config.players, config.teams]);
 
+  const numericFieldErrors = useMemo<PlaylistNumericErrors>(() => {
+    const errors: PlaylistNumericErrors = {};
+    for (const item of config.playlist) {
+      const roundCount = playlistDrafts[item.id]?.roundCount ?? String(item.roundCount);
+      const timerSeconds = playlistDrafts[item.id]?.timerSeconds ?? String(item.timerSeconds ?? 20);
+      errors[item.id] = {
+        roundCount: numericFieldError(roundCount, 1, maxRoundsFor(item.gameId)),
+        timerSeconds: item.timerSeconds === null
+          ? ""
+          : numericFieldError(timerSeconds, 5, 300),
+      };
+    }
+    return errors;
+  }, [config.playlist, playlistDrafts]);
+
+  const firstNumericError = config.playlist
+    .map((item) => numericFieldErrors[item.id]?.roundCount || numericFieldErrors[item.id]?.timerSeconds)
+    .find(Boolean) ?? "";
+
   const sessionError =
     config.playlist.length === 0
       ? "Add at least one game to the playlist."
-      : scoringError;
+      : firstNumericError || scoringError;
+
+  function playlistDraftValue(item: GamePlaylistItem, field: NumericDraftField) {
+    const draft = playlistDrafts[item.id]?.[field];
+    if (draft !== undefined) return draft;
+    return field === "roundCount"
+      ? String(item.roundCount)
+      : String(item.timerSeconds ?? 20);
+  }
+
+  function updatePlaylistDraft(id: string, field: NumericDraftField, value: string) {
+    setPlaylistDrafts((current) => ({
+      ...current,
+      [id]: { ...current[id], [field]: value },
+    }));
+  }
+
+  function clearPlaylistDraft(id: string, field: NumericDraftField) {
+    setPlaylistDrafts((current) => {
+      const itemDraft = current[id];
+      if (!itemDraft || itemDraft[field] === undefined) return current;
+      const nextItemDraft = { ...itemDraft };
+      delete nextItemDraft[field];
+      const next = { ...current };
+      if (Object.keys(nextItemDraft).length === 0) delete next[id];
+      else next[id] = nextItemDraft;
+      return next;
+    });
+  }
+
+  function commitPlaylistDraft(id: string, field: NumericDraftField) {
+    const item = config.playlist.find((candidate) => candidate.id === id);
+    if (!item) return;
+    const value = playlistDraftValue(item, field);
+    const max = field === "roundCount" ? maxRoundsFor(item.gameId) : 300;
+    const min = field === "roundCount" ? 1 : 5;
+    if (numericFieldError(value, min, max)) return;
+    const parsed = Number(value);
+    if (field === "roundCount") updatePlaylistItem(id, { roundCount: parsed });
+    else updatePlaylistItem(id, { timerSeconds: parsed });
+    clearPlaylistDraft(id, field);
+  }
+
+  function configWithPlaylistDrafts() {
+    return {
+      ...config,
+      playlist: config.playlist.map((item) => {
+        const roundDraft = playlistDraftValue(item, "roundCount");
+        const timerDraft = playlistDraftValue(item, "timerSeconds");
+        const roundCount = numericFieldError(roundDraft, 1, maxRoundsFor(item.gameId))
+          ? item.roundCount
+          : Number(roundDraft);
+        const timerSeconds = item.timerSeconds === null || numericFieldError(timerDraft, 5, 300)
+          ? item.timerSeconds
+          : Number(timerDraft);
+        return { ...item, roundCount, timerSeconds };
+      }),
+    };
+  }
 
   function applyPreset(preset: SessionPreset) {
     const currentCount = config.mode === "team"
@@ -125,6 +232,7 @@ export function SessionStudioScreen() {
       return;
     }
     setConfig(cloneSessionConfig(preset.config));
+    setPlaylistDrafts({});
     setPresetName(preset.title);
     setSavedMessage("");
   }
@@ -149,6 +257,7 @@ export function SessionStudioScreen() {
   }
 
   function applyMode(mode: SessionMode) {
+    setPlaylistDrafts({});
     setConfig((current) => ({
       ...current,
       mode,
@@ -191,7 +300,7 @@ export function SessionStudioScreen() {
       const outcome = await requestFullscreen();
       if (outcome.status !== "success") fullscreenFailure = outcome;
     }
-    const session = createSession(cloneSessionConfig(normalizedConfig(config)));
+    const session = createSession(cloneSessionConfig(normalizedConfig(configWithPlaylistDrafts())));
     navigate(`/play/${session.id}`, {
       state: fullscreenFailure ? { fullscreenFailure } : undefined,
     });
@@ -285,7 +394,7 @@ export function SessionStudioScreen() {
                 onClick={() => {
                   savePreset(
                     presetName.trim(),
-                    cloneSessionConfig(normalizedConfig(config)),
+                    cloneSessionConfig(normalizedConfig(configWithPlaylistDrafts())),
                   );
                   setSavedMessage("Preset saved on this device.");
                 }}
@@ -337,7 +446,11 @@ export function SessionStudioScreen() {
             <div className="playlist-editor">
               {config.playlist.map((item, index) => {
                 const game = gameRegistry[item.gameId];
-                const maxRounds = item.gameId === "quiz" ? 100 : item.gameId === "four-pics" ? 30 : 20;
+                const maxRounds = maxRoundsFor(item.gameId);
+                const roundCountError = numericFieldErrors[item.id]?.roundCount ?? "";
+                const timerError = numericFieldErrors[item.id]?.timerSeconds ?? "";
+                const roundCountHelpId = `${item.id}-round-count-help`;
+                const timerHelpId = `${item.id}-timer-help`;
                 return (
                   <article className="playlist-item" key={item.id}>
                     <div className="playlist-item__header">
@@ -351,10 +464,39 @@ export function SessionStudioScreen() {
                     </div>
                     <div className="playlist-settings">
                       <div className="studio-field"><span><label htmlFor={`${item.id}-content-pack`}>Content Pack</label><InfoTip label="Content Pack">The built-in KJVenture library supplies the questions and puzzles for this session.</InfoTip></span><select disabled id={`${item.id}-content-pack`} value="kjventure-core"><option>KJVenture Core Library</option></select></div>
-                      <label className="studio-field"><span>Number of {contentNoun(item.gameId)[0].toUpperCase() + contentNoun(item.gameId).slice(1)}s</span><input aria-label={`${game.title} number of ${contentNoun(item.gameId)}s`} max={maxRounds} min={1} onChange={(event) => updatePlaylistItem(item.id, { roundCount: Math.max(1, Math.min(maxRounds, Number(event.target.value) || 1)) })} type="number" value={item.roundCount} /></label>
+                      <label className="studio-field">
+                        <span>Number of {contentNoun(item.gameId)[0].toUpperCase() + contentNoun(item.gameId).slice(1)}s</span>
+                        <input
+                          aria-describedby={roundCountError ? roundCountHelpId : undefined}
+                          aria-invalid={Boolean(roundCountError)}
+                          aria-label={`${game.title} number of ${contentNoun(item.gameId)}s`}
+                          max={maxRounds}
+                          min={1}
+                          onBlur={() => commitPlaylistDraft(item.id, "roundCount")}
+                          onChange={(event) => updatePlaylistDraft(item.id, "roundCount", event.target.value)}
+                          type="number"
+                          value={playlistDraftValue(item, "roundCount")}
+                        />
+                        {roundCountError && <small className="validation-message" id={roundCountHelpId}>{roundCountError}</small>}
+                      </label>
                       <div className="studio-field"><span><label htmlFor={`${item.id}-order`}>{contentNoun(item.gameId)[0].toUpperCase() + contentNoun(item.gameId).slice(1)} Order</label><InfoTip label={`${contentNoun(item.gameId)[0].toUpperCase() + contentNoun(item.gameId).slice(1)} Order`}>Random mixes the available {contentNoun(item.gameId)}s; Source order follows the library sequence.</InfoTip></span><select id={`${item.id}-order`} onChange={(event) => updatePlaylistItem(item.id, { order: event.target.value as GamePlaylistItem["order"] })} value={item.order}><option value="random">Random</option><option value="source">Source order</option></select></div>
-                      <label className="studio-field"><span>Time Limit</span><input aria-label={`${game.title} time limit`} disabled={item.timerSeconds === null} max={300} min={5} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: Math.max(5, Math.min(300, Number(event.target.value) || 20)) })} type="number" value={item.timerSeconds ?? 20} /></label>
-                      <label className="studio-check"><input checked={item.timerSeconds === null} onChange={(event) => updatePlaylistItem(item.id, { timerSeconds: event.target.checked ? null : 20 })} type="checkbox" /><span>No Time Limit</span></label>
+                      <label className="studio-field">
+                        <span>Time Limit</span>
+                        <input
+                          aria-describedby={timerError ? timerHelpId : undefined}
+                          aria-invalid={Boolean(timerError)}
+                          aria-label={`${game.title} time limit`}
+                          disabled={item.timerSeconds === null}
+                          max={300}
+                          min={5}
+                          onBlur={() => commitPlaylistDraft(item.id, "timerSeconds")}
+                          onChange={(event) => updatePlaylistDraft(item.id, "timerSeconds", event.target.value)}
+                          type="number"
+                          value={playlistDraftValue(item, "timerSeconds")}
+                        />
+                        {timerError && <small className="validation-message" id={timerHelpId}>{timerError}</small>}
+                      </label>
+                      <label className="studio-check"><input checked={item.timerSeconds === null} onChange={(event) => { updatePlaylistItem(item.id, { timerSeconds: event.target.checked ? null : 20 }); clearPlaylistDraft(item.id, "timerSeconds"); }} type="checkbox" /><span>No Time Limit</span></label>
                       <div className="studio-field"><span><label htmlFor={`${item.id}-expiry`}>When Time Expires</label><InfoTip label="When Time Expires">Require reveal keeps the current question or puzzle in place. Allow Skipping bypasses it, while Auto-reveal shows the answer automatically.</InfoTip></span><select disabled={item.timerSeconds === null} id={`${item.id}-expiry`} onChange={(event) => updatePlaylistItem(item.id, { expiryBehavior: event.target.value as GamePlaylistItem["expiryBehavior"] })} value={item.expiryBehavior}><option value="require-reveal">Require reveal</option><option value="allow-skip">Allow Skipping</option><option value="auto-reveal">Auto-reveal</option></select></div>
                       <div className="studio-field"><span><label htmlFor={`${item.id}-difficulty`}>Difficulty</label><InfoTip label="Difficulty">Difficulty filters are unavailable because the current library has no difficulty metadata yet.</InfoTip></span><select disabled id={`${item.id}-difficulty`}><option>Difficulty not assigned</option></select></div>
                     </div>
@@ -458,6 +600,7 @@ export function SessionStudioScreen() {
           if (!pending) return;
           if (pending.preset) {
             setConfig(cloneSessionConfig(pending.preset.config));
+            setPlaylistDrafts({});
             setPresetName(pending.preset.title);
             setSavedMessage("");
           } else {

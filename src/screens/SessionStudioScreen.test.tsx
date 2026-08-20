@@ -21,6 +21,69 @@ function renderStudio() {
 describe("Session Studio scoring modes", () => {
   beforeEach(() => localStorage.clear());
 
+  it("keeps numeric setup drafts editable while validating blank and out-of-range values", () => {
+    renderStudio();
+
+    const count = screen.getByLabelText("KJV Bible Quiz number of questions");
+    const time = screen.getByLabelText("KJV Bible Quiz time limit");
+    const start = screen.getByRole("button", { name: /^Start Session$/ });
+
+    expect(count).toHaveValue(10);
+    expect(time).toHaveValue(20);
+
+    fireEvent.change(count, { target: { value: "" } });
+    expect(count).toHaveValue(null);
+    expect(within(count.closest("label") as HTMLElement).getByText("Enter a whole number from 1 to 100.")).toBeVisible();
+    expect(start).toBeDisabled();
+
+    fireEvent.change(count, { target: { value: "0" } });
+    expect(count).toHaveValue(0);
+    expect(within(count.closest("label") as HTMLElement).getByText("Enter a whole number from 1 to 100.")).toBeVisible();
+    expect(start).toBeDisabled();
+
+    fireEvent.change(count, { target: { value: "10" } });
+    expect(count).toHaveValue(10);
+    expect(start).not.toBeDisabled();
+
+    fireEvent.change(count, { target: { value: "101" } });
+    expect(within(count.closest("label") as HTMLElement).getByText("Enter a whole number from 1 to 100.")).toBeVisible();
+    expect(start).toBeDisabled();
+
+    fireEvent.change(count, { target: { value: "100" } });
+    expect(count).toHaveValue(100);
+    expect(start).not.toBeDisabled();
+
+    fireEvent.change(time, { target: { value: "" } });
+    expect(time).toHaveValue(null);
+    expect(within(time.closest("label") as HTMLElement).getByText("Enter a whole number from 5 to 300.")).toBeVisible();
+    expect(start).toBeDisabled();
+
+    fireEvent.change(time, { target: { value: "15" } });
+    expect(time).toHaveValue(15);
+    expect(start).not.toBeDisabled();
+
+    fireEvent.change(time, { target: { value: "4" } });
+    expect(within(time.closest("label") as HTMLElement).getByText("Enter a whole number from 5 to 300.")).toBeVisible();
+    expect(start).toBeDisabled();
+
+    fireEvent.change(time, { target: { value: "5" } });
+    expect(time).toHaveValue(5);
+    expect(start).not.toBeDisabled();
+
+    fireEvent.change(time, { target: { value: "301" } });
+    expect(within(time.closest("label") as HTMLElement).getByText("Enter a whole number from 5 to 300.")).toBeVisible();
+    expect(start).toBeDisabled();
+
+    fireEvent.change(time, { target: { value: "300" } });
+    expect(time).toHaveValue(300);
+    expect(start).not.toBeDisabled();
+
+    fireEvent.click(start);
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_SESSION_KEY) ?? "null");
+    expect(stored.config.playlist[0].roundCount).toBe(100);
+    expect(stored.config.playlist[0].timerSeconds).toBe(300);
+  });
+
   it("keeps Fellowship Mode as the default and presents the required terminology", () => {
     renderStudio();
     expect(screen.getByRole("button", { name: "Fellowship Mode Classic host-led play without scores." })).toHaveAttribute("aria-pressed", "true");
